@@ -2,7 +2,6 @@
 node_modules/
 release/
 build/icon.png
-build/icon.ico
 
 # 游戏运行时数据
 saves/
