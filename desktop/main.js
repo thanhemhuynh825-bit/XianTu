@@ -57,12 +57,23 @@ app.setName('仙途苍玄界');
 app.whenReady().then(async () => {
   log('app ready, start server...');
   try {
-    /* 首次运行：把内置 config.json 复制到数据目录（玩家可自行修改模型/温度等） */
+    /* 首次运行：把内置 config.json 复制到数据目录（玩家可自行修改模型/温度等）；
+     * 智能合并：内置配置的 updateUrl 非空而本地为空时，自动补齐（一键更新开箱即用） */
     fs.mkdirSync(DATA_DIR, { recursive: true });
     const extConfig = path.join(DATA_DIR, 'config.json');
-    if (!fs.existsSync(extConfig)) {
-      try { fs.copyFileSync(path.join(__dirname, '..', 'config.json'), extConfig); } catch (e) { log('copy config failed:', e.message); }
-    }
+    try {
+      if (!fs.existsSync(extConfig)) {
+        fs.copyFileSync(path.join(__dirname, '..', 'config.json'), extConfig);
+      } else {
+        const bundled = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.json'), 'utf8'));
+        const local = JSON.parse(fs.readFileSync(extConfig, 'utf8'));
+        if (bundled.updateUrl && !local.updateUrl) {
+          local.updateUrl = bundled.updateUrl;
+          fs.writeFileSync(extConfig, JSON.stringify(local, null, 2), 'utf8');
+          log('updateUrl 已自动配置:', local.updateUrl);
+        }
+      }
+    } catch (e) { log('config init failed:', e.message); }
 
     const port = await getFreePort(8787);
     log('server port:', port);
