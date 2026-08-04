@@ -12,6 +12,7 @@ const path = require('path');
 const { loadConfig, chat, GMError } = require('./game/llm');
 const { SYSTEM_PROMPT, buildMessages, OPENING_PROMPT, revivePrompt, reincarnatePrompt, GM_RULES_VERSION } = require('./game/gm');
 const { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, fateRolls, applyFuses, settleIdle, formatDate, IDLE_MAX_MIN, extractMoveLocations, inferTimeFx, fmtHours, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo } = require('./game/state');
+const { rollTraits, ORIGINS, PERSONALITIES, TALENTS } = require('./game/character');
 const { QA_SYSTEM, QC_SYSTEM, buildQCFacts } = require('./game/gm');
 
 const cfg = loadConfig();
@@ -421,7 +422,12 @@ const server = http.createServer(async (req, res) => {
 
     const body = await readBody(req);
 
-    /* 新游戏（会覆盖该槽位，前端已确认） */
+    /* 建号词条：预览 / 刷新（免费 20 次由前端计数） */
+    if (req.method === 'POST' && p === '/api/preview') {
+      return send(200, { ok: true, traits: rollTraits(body.gender === 'female' ? 'female' : 'male') });
+    }
+
+    /* 新游戏（会覆盖该槽位，前端已确认；name/gender/词条由建号界面选定） */
     if (req.method === 'POST' && p === '/api/newgame') {
       ensureDirs();
       const slot = Math.max(1, Math.min(3, parseInt(body.slot) || 1));
@@ -430,7 +436,13 @@ const server = http.createServer(async (req, res) => {
       try {
         const given = (body.name || '').trim().slice(0, 12);
         const name = given && given !== '无名散修' ? given : generateName(); // 留空由天命赐名
-        const st = newState(name);
+        const traits = body.traits && typeof body.traits === 'object' ? body.traits : {};
+        const st = newState(name, {
+          gender: body.gender,
+          origin: traits.origin && ORIGINS.some(o => o.name === traits.origin.name) ? traits.origin : null,
+          personality: traits.personality && PERSONALITIES.some(p => p.name === traits.personality.name) ? traits.personality : null,
+          talent: traits.talent && TALENTS.some(t => t.name === traits.talent.name) ? traits.talent : null,
+        });
         st.givenName = !!given;
         return send(200, await gmTurn(slot, st, OPENING_PROMPT, { skipHistory: true, json: true }));
       } finally { busy.set(slot, false); }

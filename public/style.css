@@ -693,6 +693,37 @@ body {
 .cs-hint { position: absolute; bottom: 3%; left: 0; right: 0; text-align: center;
   font-size: 12px; color: rgba(226,217,196,.55); letter-spacing: .3em; animation: pulse 1.6s ease infinite; }
 
+/* 建号界面 */
+.char-create { width: min(720px, 94vw); }
+.cc-row { display: flex; gap: 14px; align-items: flex-end; margin-bottom: 14px; flex-wrap: wrap; }
+.cc-field { flex: 1; min-width: 160px; }
+.cc-label { font-size: 13px; color: var(--gold-dim); letter-spacing: .15em; margin-bottom: 6px; }
+.cc-gender { display: flex; gap: 10px; }
+.cc-sex { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-dim);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: all .15s; }
+.cc-sex:hover { border-color: var(--gold-dim); }
+.cc-sex:has(input:checked) { border-color: var(--gold); color: var(--gold-b); background: rgba(201,168,106,.1); }
+.cc-sex img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); }
+.cc-sex input { display: none; }
+.cc-reroll { flex: 0 0 auto; }
+.cc-traits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.cc-trait { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; background: rgba(0,0,0,.22); animation: rise .3s ease both; }
+.ct-head { font-size: 14px; color: var(--gold-b); letter-spacing: .1em; display: flex; align-items: center; gap: 8px; }
+.ct-tags { display: inline-flex; gap: 4px; }
+.ct-tags .ct-tag { font-size: 10.5px; color: var(--cyan); border: 1px solid rgba(127,196,200,.3); border-radius: 3px; padding: 0 6px; }
+.ct-desc { font-size: 12.5px; color: var(--ink-dim); margin-top: 6px; line-height: 1.7; }
+
+/* 面板卡：头像 + 角色头部 */
+.char-top { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.char-avatar { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  border: 2px solid var(--gold-dim); box-shadow: 0 4px 18px rgba(0,0,0,.5), 0 0 24px rgba(201,168,106,.15); }
+.char-id { flex: 1; min-width: 0; }
+.char-dise { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.char-dise .dise-chip { font-size: 11.5px; color: var(--gold-dim); border: 1px solid rgba(201,168,106,.25); border-radius: 4px; padding: 2px 9px; letter-spacing: .05em; }
+.char-dise .dise-chip b { color: var(--gold-b); font-weight: 600; }
+.char-dise .dise-chip[data-kind="talent"] { color: var(--jade); border-color: rgba(143,191,127,.3); }
+.char-dise .dise-chip[data-kind="talent"] b { color: var(--jade); }
+
 /* ===== 设置面板 ===== */
 .settings { width: min(680px, 94vw); }
 .settings-nav { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }

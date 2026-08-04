@@ -133,9 +133,10 @@ function rollRoots() {
   return { quality, list };
 }
 
-function newState(name = '无名散修') {
+function newState(name = '无名散修', traits = {}) {
+  const roll = rollRoots();
   return {
-    version: 5,
+    version: 6,
     created: Date.now(),
     updated: Date.now(),
     turns: 0,
@@ -159,6 +160,11 @@ function newState(name = '无名散修') {
     mapPos: { ...MAP_SKELETON }, // 舆图坐标：区域 → [x, y]
     scene: null,   // 当前场景锚点：{npcs, desc, mood}（GM 维护，保证场景连贯）
     turnSnaps: [], // 回合快照链：每回合核心状态（支持回滚）
+    /* 角色底色：性别/出身/性格/禀赋（建号选定，影响发展底色） */
+    gender: traits.gender === 'female' ? 'female' : 'male',
+    origin: traits.origin || null,
+    personality: traits.personality || null,
+    talent: traits.talent || null,
     name,
     realm: { stage: '炼气', level: 1 },
     roots: rollRoots(),
@@ -250,6 +256,10 @@ function normalizeState(s) {
   s.hooks = Array.isArray(s.hooks) ? s.hooks.filter(h => h && h.open !== false).slice(-20) : [];
   s.quotes = Array.isArray(s.quotes) ? s.quotes.slice(-200) : [];
   s.scene = s.scene && (s.scene.desc || (s.scene.npcs && s.scene.npcs.length)) ? { npcs: s.scene.npcs || [], desc: s.scene.desc || '', mood: s.scene.mood || '' } : null;
+  s.gender = s.gender === 'female' ? 'female' : 'male';
+  s.origin = s.origin || null;
+  s.personality = s.personality || null;
+  s.talent = s.talent || null;
   s.turnSnaps = Array.isArray(s.turnSnaps) ? s.turnSnaps.slice(-TURN_SNAP_MAX) : [];
   s.history = Array.isArray(s.history) ? s.history : [];
   s.log = Array.isArray(s.log) ? s.log.slice(-10000) : []; // 剧情永久保留
@@ -790,7 +800,7 @@ function extractItemSentence(narration, itemName) {
 
 /* ---------- 回合快照链：每回合存核心状态，支持任意回滚（最近 300 回合） ---------- */
 const TURN_SNAP_MAX = 300;
-const CORE_FIELDS = ['name', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'conditions', 'enemy', 'visited', 'mapPos'];
+const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'conditions', 'enemy', 'visited', 'mapPos'];
 function snapCore(st) {
   const core = {};
   for (const k of CORE_FIELDS) {

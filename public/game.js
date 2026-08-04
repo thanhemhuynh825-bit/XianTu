@@ -186,8 +186,15 @@ function renderState(st) {
   const a = st.attrs;
   ensureTurnBadge();
   $('turn-badge').textContent = `第 ${st.turns} 回合 · ${fmtDate(st.timeH)} · ${esc(st.location.area)}`;
+  $('c-avatar').src = 'avatars/' + (st.gender === 'female' ? 'female' : 'male') + '.webp';
   $('c-name').textContent = st.name + (st.reincarnations ? ` · 第${st.reincarnations + 1}世` : '');
-  $('c-meta').textContent = `${stageLabel(st.realm)} · ${st.roots.quality}（${st.roots.list.join('、')}） · 年${Math.round(a.age)}岁 · 寿元${Math.round(a.lifespan)}年`;
+  $('c-meta').textContent = `${stageLabel(st.realm)} · ${st.roots.quality} · 年${Math.round(a.age)}岁 · 寿元${Math.round(a.lifespan)}年`;
+  $('c-roots').textContent = `灵根：${st.roots.list.join('、')}`;
+  /* 性格与禀赋（角色底色，出身不常驻展示） */
+  $('c-dise').innerHTML = [
+    st.personality ? `<span class="dise-chip" data-kind="personality" data-tip="${esc(st.personality.desc)}"><b>性</b>${esc(st.personality.name)}</span>` : '',
+    st.talent ? `<span class="dise-chip" data-kind="talent" data-tip="${esc(st.talent.desc)}"><b>禀</b>${esc(st.talent.name)}</span>` : '',
+  ].join('');
 
   setBar('hp', a.hp, a.max_hp, 't-hp', `${a.hp}/${a.max_hp}`);
   setBar('mp', a.mp, a.max_mp, 't-mp', `${a.mp}/${a.max_mp}`);
@@ -423,10 +430,14 @@ async function showSlots() {
   list.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation(); hideModal('m-slots'); enter(Number(b.dataset.open));
   }));
-  list.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => {
+  list.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', async () => {
     app.slot = Number(b.dataset.new);
     $('m-new-title').textContent = `开辟第 ${app.slot} 档 · 命运初定`;
     hideModal('m-slots'); showModal('m-new'); $('new-name').focus();
+    charCreate.rerolls = 20;
+    $('reroll-count').textContent = '…';
+    const r = await api('/api/preview', { gender: currentGender() });
+    if (r.ok) renderTraits(r.traits);
   }));
   list.querySelectorAll('[data-snaps]').forEach(b => b.addEventListener('click', async e => {
     e.stopPropagation();
@@ -617,6 +628,36 @@ function replayLog(st) {
   nav.scrollTop = nav.scrollHeight;
 }
 
+/* ---------- 建号：性别 + 词条（20 次免费刷新） ---------- */
+const charCreate = { rerolls: 20, traits: null };
+function currentGender() {
+  const r = document.querySelector('input[name="sex"]:checked');
+  return r ? r.value : 'male';
+}
+function renderTraits(t) {
+  charCreate.traits = t;
+  $('t-roots').textContent = `${t.roots.quality}：${t.roots.list.join('、')}`;
+  $('t-roots-tags').innerHTML = t.roots.quality === '天灵根' ? '<span class="ct-tag">天选</span>' : t.roots.quality === '变异灵根' ? '<span class="ct-tag">异禀</span>' : '<span class="ct-tag">常资</span>';
+  $('t-origin').textContent = t.origin.name + '——' + t.origin.desc;
+  $('t-origin-tags').innerHTML = (t.origin.tags || []).map(x => `<span class="ct-tag">${esc(x)}</span>`).join('');
+  $('t-personality').textContent = t.personality.name + '——' + t.personality.desc;
+  $('t-talent').textContent = t.talent.name + '——' + t.talent.desc;
+  $('t-talent-tags').innerHTML = (t.talent.tags || []).map(x => `<span class="ct-tag">${esc(x)}</span>`).join('');
+  $('reroll-count').textContent = charCreate.rerolls;
+  $('reroll-left').textContent = charCreate.rerolls;
+  $('btn-reroll').disabled = charCreate.rerolls <= 0;
+}
+$('btn-reroll').addEventListener('click', async () => {
+  if (charCreate.rerolls <= 0) { alert('天命已定，二十次刷新用尽——此身已成，不必再改。'); return; }
+  charCreate.rerolls -= 1;
+  const r = await api('/api/preview', { gender: currentGender() });
+  if (r.ok) renderTraits(r.traits);
+  else { charCreate.rerolls += 1; alert(r.error?.msg || '刷新失败'); }
+});
+document.querySelectorAll('input[name="sex"]').forEach(r => r.addEventListener('change', () => {
+  if (charCreate.traits) api('/api/preview', { gender: currentGender() }).then(r => { if (r.ok) renderTraits(r.traits); });
+}));
+
 async function startNewGame() {
   const name = $('new-name').value.trim();
   hideModal('m-new');
@@ -626,7 +667,10 @@ async function startNewGame() {
   appendThinking();
   app.busy = true;
   try {
-    const res = await api('/api/newgame', { slot: app.slot, name });
+    const res = await api('/api/newgame', {
+      slot: app.slot, name, gender: currentGender(),
+      traits: charCreate.traits || null,
+    });
     removeThinking();
     if (!res.ok) {
       if (res.error?.code === 'NO_KEY') { showModal('m-nokey'); return; }

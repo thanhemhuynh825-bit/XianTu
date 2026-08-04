@@ -21,15 +21,15 @@
   </div>
   <div class="top-actions">
     <span class="btn-group">
-      <button class="btn ghost" id="btn-map" title="苍玄界舆图：已探索区域">地图</button>
-      <button class="btn ghost" id="btn-slots" title="存档管理与回档">存档</button>
-      <button class="btn ghost" id="btn-codex" title="万象阁：图鉴与人物志">万象</button>
-      <button class="btn ghost" id="btn-life" title="此生大事记">生平</button>
+      <button class="btn ghost" id="btn-map" title="苍玄界舆图：三级地图查看已探索区域">地图</button>
+      <button class="btn ghost" id="btn-slots" title="存档管理：快照留档 / 回档 / 换档">存档</button>
+      <button class="btn ghost" id="btn-codex" title="万象阁：物品功法图鉴与人物志">万象</button>
+      <button class="btn ghost" id="btn-life" title="此生大事件表：突破/死亡/任务/探索全记录">生平</button>
     </span>
     <span class="btn-group sep">
-      <button class="btn ghost" id="btn-settings" title="游戏设置：画面/文字/外观">设置</button>
+      <button class="btn ghost" id="btn-settings" title="游戏设置：画面皮肤/文字/API/一键更新">设置</button>
       <button class="btn ghost" id="btn-guide" title="新手引导与玩法说明">指引</button>
-      <button class="btn ghost" id="btn-export" title="导出当前存档">导出</button>
+      <button class="btn ghost" id="btn-export" title="导出当前存档（备份/迁移）">导出</button>
       <button class="btn ghost" id="btn-import" title="导入存档文件">导入</button>
     </span>
   </div>
@@ -62,8 +62,15 @@
   <aside class="side">
     <div class="side-card card">
       <div class="char-head">
-        <div class="char-name" id="c-name">— <span class="rename-btn" id="btn-rename" title="赐名/改名">改</span></div>
-        <div class="char-meta" id="c-meta">—</div>
+        <div class="char-top">
+          <img class="char-avatar" id="c-avatar" src="avatars/male.webp" alt="头像" draggable="false">
+          <div class="char-id">
+            <div class="char-name" id="c-name">— <span class="rename-btn" id="btn-rename" title="赐名/改名">改</span></div>
+            <div class="char-meta" id="c-meta">—</div>
+            <div class="char-roots" id="c-roots">—</div>
+            <div class="char-dise" id="c-dise"></div>
+          </div>
+        </div>
         <div class="bar-row">
           <div class="bar-label">气血</div>
           <div class="bar"><div class="bar-fill hp" id="bar-hp"></div></div>
@@ -149,12 +156,33 @@
 
 <!-- 新角色 -->
 <div class="modal-mask hidden" id="m-new">
-  <div class="modal">
-    <div class="modal-title" id="m-new-title">开辟新档</div>
-    <div class="modal-desc">天道将为你降下凡身，请留下名讳——留空将由天命赐名（NPC 会以此名相称）。</div>
+  <div class="modal wide char-create">
+    <div class="modal-title" id="m-new-title">开辟新档 · 命运初定</div>
+    <div class="modal-desc">天道将为你降下凡身——名讳与性别由你定，其余（灵根·出身·性格·禀赋）由天命掷定，可免费刷新 <b id="reroll-left">20</b> 次。</div>
+    <div class="cc-row">
+      <div class="cc-field">
+        <div class="cc-label">名讳</div>
+        <input id="new-name" maxlength="12" placeholder="留空由天命赐名">
+      </div>
+      <div class="cc-field">
+        <div class="cc-label">性别</div>
+        <div class="cc-gender">
+          <label class="cc-sex"><input type="radio" name="sex" value="male" checked><img src="avatars/male.webp" alt="男">男</label>
+          <label class="cc-sex"><input type="radio" name="sex" value="female"><img src="avatars/female.webp" alt="女">女</label>
+        </div>
+      </div>
+      <div class="cc-field cc-reroll">
+        <button class="btn primary" id="btn-reroll">刷新词条（剩 <span id="reroll-count">20</span> 次）</button>
+      </div>
+    </div>
+    <div class="cc-traits" id="cc-traits">
+      <div class="cc-trait"><div class="ct-head">灵根 <span class="ct-tags" id="t-roots-tags"></span></div><div class="ct-desc" id="t-roots"></div></div>
+      <div class="cc-trait"><div class="ct-head">出身 <span class="ct-tags" id="t-origin-tags"></span></div><div class="ct-desc" id="t-origin"></div></div>
+      <div class="cc-trait"><div class="ct-head">性格</div><div class="ct-desc" id="t-personality"></div></div>
+      <div class="cc-trait"><div class="ct-head">禀赋 <span class="ct-tags" id="t-talent-tags"></span></div><div class="ct-desc" id="t-talent"></div></div>
+    </div>
     <div class="new-row">
-      <input id="new-name" maxlength="12" placeholder="如：楚玄 / 苏长歌 / 无名散修">
-      <button class="btn primary" id="btn-new-go">踏入苍玄界</button>
+      <button class="btn primary" id="btn-new-go" style="width:100%">踏入苍玄界</button>
     </div>
     <div class="modal-actions"><button class="btn ghost" data-close>返回</button></div>
   </div>
@@ -215,33 +243,43 @@
     <div class="modal-title">仙途 · 新手须知</div>
     <div class="guide-sec">
       <div class="guide-h">这是一款什么样的游戏？</div>
-      <div class="guide-b">「仙途」是 AI 实时演绎的开放式修仙文字世界。你输入任何行动（自然语言即可），DeepSeek 大模型即刻为你演绎世界的回应——没有固定剧本，你的每个选择都真实地改变命运。</div>
+      <div class="guide-b">「仙途」是 AI 实时演绎的开放式修仙文字世界。你输入任何行动（自然语言即可），DeepSeek 大模型即刻为你演绎世界的回应——没有固定剧本，你的每个选择都真实地改变命运。建号时掷定的出身、性格、禀赋，会在中前期不断带来专属的意外之喜与祸。</div>
     </div>
     <div class="guide-sec">
       <div class="guide-h">初入此界的三个目标</div>
-      <div class="guide-b">① 活下去（妖兽、魔修、寿元都是威胁）　② 找到功法与修炼之道（打坐、拜师、坊市、奇遇）　③ 积累修为突破境界（炼气 → 筑基 → 金丹 → … → 飞升）</div>
+      <div class="guide-b">① 活下去（妖兽、魔修、寿元都是威胁）　② 找到功法与修炼之道（打坐、拜师、坊市、奇遇）　③ 积累修为突破境界（炼气 → 筑基 → 金丹 → … → 飞升）。修为是硬门槛：圆满封顶，突破后清零重来，机缘无法越界。</div>
     </div>
     <div class="guide-sec">
       <div class="guide-h">怎么玩？</div>
       <div class="guide-b">
-        底部输入框直接打字行动，或点击快捷指令。右侧面板实时显示你的状态。<br>
-        示例：<b>向北</b> · <b>打坐修炼</b> · <b>与钱掌柜交谈</b> · <b>查看四周</b> · <b>服用聚气丹</b> · <b>攻击妖狼</b> · <b>逃</b> · <b>购买筑基丹</b> —— 任何自然语言都可以。
+        底部「言出法随」输入框直接打字行动，或点击快捷指令；右侧面板实时显示状态。<br>
+        示例：<b>向北</b> · <b>打坐修炼</b> · <b>与钱掌柜交谈</b> · <b>查看四周</b> · <b>服用聚气丹</b> · <b>攻击妖狼</b> · <b>逃</b> —— 任何自然语言都可以。
+      </div>
+    </div>
+    <div class="guide-sec">
+      <div class="guide-h">界面导览</div>
+      <div class="guide-b">
+        <b>上栏</b>：地图（SVG 舆图，三级查看）/ 存档（快照回档）/ 万象（图鉴·人物志）/ 生平（大事件表）/ 设置（皮肤·字号·API·一键更新）<br>
+        <b>面板卡</b>：行囊 / 功法 / 因果（任务·未了之事）/ 地理（状态·战况）四个分页，悬停任何属性或物品可查看说明<br>
+        <b>剧情页</b>：每回合右下角「⤺ 回滚」可时光倒流重写命运<br>
+        <b>天机球</b>：右下角可拖动的悬浮球，随时询问前文剧情（某人说过什么、去过哪里）
       </div>
     </div>
     <div class="guide-sec">
       <div class="guide-h">关键系统</div>
       <div class="guide-b">
-        <b>修炼</b>：打坐/服丹/搏杀/奇遇 获得修为，圆满后服突破丹晋阶；金丹以上渡天劫。<br>
-        <b>寿元</b>：凡人百年，突破延长寿命。寿元耗尽即坐化——时间是修行最大的敌人。<br>
-        <b>死亡</b>：战死可复活（气血六成、损一成灵石）或轮回转世（福缘+1、传承一本功法）。<br>
-        <b>功法</b>：修炼/攻击/护体/身法/辅助五类，黄玄地天仙五阶，拜师、坊市、奇遇皆可得。<br>
-        <b>因果</b>：NPC 有记忆会记仇报恩，你的选择会埋下长期伏笔并被世界回收。
+        <b>修炼</b>：打坐/服丹/搏杀/奇遇 获得修为，圆满后突破；金丹以上渡天劫。<br>
+        <b>时间</b>：游戏内日历真实流逝（闭关三月真耗三月寿元）；「闭关修炼」可放置挂机，离线照常结算。<br>
+        <b>寿元</b>：耗尽即坐化——时间是修行最大的敌人。<br>
+        <b>死亡</b>：战死可复活（气血六成、损一成灵石）或轮回转世（福缘+1、传承功法）。<br>
+        <b>战力森严</b>：修为等级如天堑，NPC 登场会标注你可感知的战力情报；越阶硬拼等于送死，智取、借势、逃跑才是正道。<br>
+        <b>因果</b>：NPC 有记忆会记仇报恩，重大抉择 3~10 回合内必有回响；伏笔会登记为「未了之事」督促回收。
       </div>
     </div>
     <div class="guide-sec">
       <div class="guide-h">存档与回档（重要）</div>
       <div class="guide-b">
-        每一步操作都自动存档，绝不丢进度。想保险起见：点击「存档」→ 选中档位旁的「快照」→ 给当前进度命名保存（每档最多 20 个快照）。任何时候可回档到任意快照，回档前服务器会自动留一份「回档前自动备份」作为后悔药。
+        每一步操作都自动存档，绝不丢进度。想保险起见：「存档」→ 选中档位旁的「快照」→ 给当前进度命名保存（每档 20 个）。任何时候可回档，回档前自动留「回档前自动备份」。剧情记录永久保留，刷新后完整重放。
       </div>
     </div>
     <div class="guide-sec">
@@ -250,8 +288,8 @@
         <label class="chk"><input type="checkbox" data-step="0"> 与一个 NPC 交谈（如：与钱掌柜交谈）</label>
         <label class="chk"><input type="checkbox" data-step="1"> 完成一次修炼（打坐 / 运功调息）</label>
         <label class="chk"><input type="checkbox" data-step="2"> 赚到第一笔灵石（卖材料 / 接任务）</label>
-        <label class="chk"><input type="checkbox" data-step="3"> 服用一颗丹药（行囊点击即可）</label>
-        <label class="chk"><input type="checkbox" data-step="4"> 保存一个快照（存档 → 快照）</label>
+        <label class="chk"><input type="checkbox" data-step="3"> 服用一颗丹药（剧情中直接说「服用聚气丹」）</label>
+        <label class="chk"><input type="checkbox" data-step="4"> 打开「地图」看看已探索的区域</label>
       </div>
     </div>
     <div class="modal-actions"><button class="btn primary" id="btn-guide-close">明白了，踏入仙途</button></div>
