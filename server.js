@@ -744,7 +744,8 @@ const server = http.createServer(async (req, res) => {
         }
         const ver = pkg && String(pkg.version || '');
         const cur = localResVersion();
-        const hasHot = ver && ver !== cur && pkg.files && typeof pkg.files === 'object';
+        const norm = s => String(s || '').replace(/^v/i, ''); // tag 的 v 前缀归一化
+        const hasHot = ver && norm(ver) !== norm(cur) && pkg.files && typeof pkg.files === 'object';
         if (hasHot && RES_DIR) {
           fs.mkdirSync(path.join(RES_DIR, 'public'), { recursive: true });
           let n = 0;
@@ -781,7 +782,7 @@ const server = http.createServer(async (req, res) => {
       try {
         fs.mkdirSync(dir, { recursive: true });
         const target = path.join(dir, String(name || '仙途-新版本.exe').replace(/[\\/:*?"<>|]/g, '_'));
-        const res = await fetch(url, { signal: AbortSignal.timeout(0) });
+        const res = await fetch(url, { signal: AbortSignal.timeout(1800000) }); // 大文件下载：30 分钟超时
         if (!res.ok) return send(502, err('FETCH', `下载失败：${res.status}`));
         const buf = Buffer.from(await res.arrayBuffer());
         fs.writeFileSync(target, buf);
