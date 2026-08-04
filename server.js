@@ -9,18 +9,33 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { loadConfig, chat, GMError } = require('./game/llm');
-const { SYSTEM_PROMPT, buildMessages, OPENING_PROMPT, revivePrompt, reincarnatePrompt, GM_RULES_VERSION } = require('./game/gm');
-const { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, fateRolls, applyFuses, settleIdle, formatDate, IDLE_MAX_MIN, extractMoveLocations, inferTimeFx, fmtHours, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo } = require('./game/state');
-const { rollTraits, ORIGINS, PERSONALITIES, TALENTS } = require('./game/character');
-const { QA_SYSTEM, QC_SYSTEM, buildQCFacts } = require('./game/gm');
 
-const cfg = loadConfig();
-const GAME_VERSION = '1.1.0';
+const GAME_VERSION = '1.2.1';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
 const RES_DIR = process.env.XMUD_RES_DIR || ''; // 资源热更目录（桌面版优先读取）
+if (!process.env.XMUD_CONFIG_DIR) process.env.XMUD_CONFIG_DIR = ROOT; // 热更模块读配置的兜底（桌面版已指向 userData）
+
+/* 热更模块加载：game/*.js 优先从热更目录加载（桌面版重启后生效），否则用内置 */
+function loadGame(mod) {
+  if (RES_DIR) {
+    const p = path.join(RES_DIR, 'game', mod + '.js');
+    if (fs.existsSync(p)) return require(p);
+  }
+  return require('./game/' + mod);
+}
+const state = loadGame('state');
+const gm = loadGame('gm');
+const character = loadGame('character');
+const llm = loadGame('llm');
+const { SYSTEM_PROMPT, buildMessages, OPENING_PROMPT, revivePrompt, reincarnatePrompt, GM_RULES_VERSION } = gm;
+const { QA_SYSTEM, QC_SYSTEM, buildQCFacts } = gm;
+const { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, fateRolls, applyFuses, settleIdle, formatDate, IDLE_MAX_MIN, extractMoveLocations, inferTimeFx, fmtHours, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo } = state;
+const { rollTraits, ORIGINS, PERSONALITIES, TALENTS } = character;
+const { loadConfig: loadCfg, chat, GMError } = llm;
+
+const cfg = loadCfg();
 
 /* 静态资源：热更目录优先，其次内置 */
 function resolvePublic(rel) {
@@ -761,11 +776,12 @@ const server = http.createServer(async (req, res) => {
         const hasHot = ver && norm(ver) !== norm(cur) && pkg.files && typeof pkg.files === 'object';
         if (hasHot && RES_DIR) {
           fs.mkdirSync(path.join(RES_DIR, 'public'), { recursive: true });
+          fs.mkdirSync(path.join(RES_DIR, 'game'), { recursive: true });
           let n = 0;
           for (const [rel, b64] of Object.entries(pkg.files)) {
             const safe = path.normalize(rel).replace(/^[.\\/]+/, '');
             if (!safe || safe.includes('..')) continue;
-            const target = path.join(RES_DIR, 'public', safe);
+            const target = path.join(RES_DIR, safe);
             fs.mkdirSync(path.dirname(target), { recursive: true });
             fs.writeFileSync(target, Buffer.from(b64, 'base64'));
             n++;

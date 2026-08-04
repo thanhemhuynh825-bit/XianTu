@@ -13,7 +13,7 @@ const version = process.argv[2] || `1.0.${Date.now().toString(36)}`;
 const outDir = path.join(__dirname, 'update');
 fs.mkdirSync(outDir, { recursive: true });
 
-/* 打包 public/**（前端界面，热更即时生效） */
+/* 打包 public/**（前端界面）与 game/**（规则/词条池，重启后生效） */
 function walk(dir, base) {
   const out = [];
   for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -25,7 +25,10 @@ function walk(dir, base) {
 }
 const files = {};
 for (const rel of walk(path.join(__dirname, 'public'), path.join(__dirname, 'public'))) {
-  files[rel] = fs.readFileSync(path.join(__dirname, 'public', rel)).toString('base64');
+  files['public/' + rel] = fs.readFileSync(path.join(__dirname, 'public', rel)).toString('base64');
+}
+for (const rel of walk(path.join(__dirname, 'game'), path.join(__dirname, 'game'))) {
+  files['game/' + rel] = fs.readFileSync(path.join(__dirname, 'game', rel)).toString('base64');
 }
 
 const pkg = {
