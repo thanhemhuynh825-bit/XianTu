@@ -43,6 +43,12 @@
     <div class="narrative-inner" id="narrative-inner">
       <div class="orn-head">— ✦ —</div>
       <div class="opening">
+        <div class="opening-bg">
+          <img src="cutscenes/1.webp" alt="" class="ob-img active" draggable="false">
+          <img src="cutscenes/2.webp" alt="" class="ob-img" draggable="false">
+          <img src="cutscenes/3.webp" alt="" class="ob-img" draggable="false">
+          <img src="cutscenes/4.webp" alt="" class="ob-img" draggable="false">
+        </div>
         <img src="logo.png" alt="仙途" class="opening-logo" draggable="false">
         <div class="opening-title">仙途</div>
         <div class="opening-line">灵气复苏 · 群雄逐鹿 · 一介凡身亦可问鼎天穹</div>
@@ -305,6 +311,19 @@
 
 <!-- 全局悬浮说明 -->
 <div class="tip" id="tip"></div>
+
+<!-- 剧情过场（重大节点全屏插画） -->
+<div class="modal-mask hidden" id="m-cutscene">
+  <div class="cutscene">
+    <img id="cs-img" src="" alt="">
+    <div class="cs-shade"></div>
+    <div class="cs-content">
+      <div class="cs-title" id="cs-title"></div>
+      <div class="cs-text" id="cs-text"></div>
+    </div>
+    <div class="cs-hint">轻触继续</div>
+  </div>
+</div>
 
 <!-- 游戏设置 -->
 <div class="modal-mask hidden" id="m-settings">

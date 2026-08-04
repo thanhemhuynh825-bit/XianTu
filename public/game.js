@@ -384,6 +384,7 @@ async function send(cmd) {
     renderState(res.state);
     renderChips();
     localStorage.setItem('xmx_slot', String(app.slot));
+    if (res.cutscene) showCutscene(res.cutscene);
   } catch (e) {
     removeThinking();
     appendTurn({ narration: '⚠ 与天道断联（网络错误），请重试。' });
@@ -987,6 +988,31 @@ function openLife() {
   }).join('');
   showModal('m-life');
 }
+
+/* ---------- 开场背景轮播 ---------- */
+let openingIdx = 0;
+const openingImgs = document.querySelectorAll('.opening-bg .ob-img');
+setInterval(() => {
+  if (!document.querySelector('.opening')) return; // 开场页已移除则停止
+  openingIdx = (openingIdx + 1) % openingImgs.length;
+  openingImgs.forEach((im, i) => im.classList.toggle('active', i === openingIdx));
+}, 9000);
+
+/* ---------- 剧情过场：重大节点全屏插画 ---------- */
+function showCutscene(cs) {
+  if (!cs) return;
+  $('cs-img').src = 'cutscenes/' + (cs.img || 1) + '.webp';
+  $('cs-title').textContent = cs.title || '';
+  $('cs-text').textContent = cs.text || '';
+  showModal('m-cutscene');
+}
+$('m-cutscene').addEventListener('click', () => hideModal('m-cutscene'));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    const m = $('m-cutscene');
+    if (!m.classList.contains('hidden')) hideModal('m-cutscene');
+  }
+});
 
 /* ---------- 游戏设置：皮肤/缩放/字号/动画/字体 ---------- */
 const SET_KEY = 'xmx_settings';

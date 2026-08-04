@@ -369,6 +369,7 @@ async function gmTurn(slot, st, command, opts = {}) {
     available: Array.isArray(json.available) ? json.available.slice(0, 9) : [],
     events,
     state: safeView(st),
+    cutscene: fused.cutscene || null, // 重大节点过场（一次性展示，不落档）
   };
 }
 
