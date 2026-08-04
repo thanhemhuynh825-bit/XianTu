@@ -1,0 +1,19 @@
+# 依赖与构建产物
+node_modules/
+release/
+build/icon.png
+build/icon.ico
+
+# 游戏运行时数据
+saves/
+update/
+*.log
+
+# 编辑器/系统
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# 临时
+*.tmp

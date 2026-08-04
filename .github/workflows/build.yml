@@ -1,0 +1,39 @@
+name: 构建发布
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 生成更新包 update.json（前端资源热更）
+        run: node make-update.js ${{ github.ref_name }}
+
+      - name: 打包便携版 exe
+        run: npx electron-builder --win portable
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: 发布到 GitHub Release（自动生成）
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.exe
+            update/update.json
+          generate_release_notes: true

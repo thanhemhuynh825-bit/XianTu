@@ -1,0 +1,13 @@
+﻿{
+  "apiKey": "",
+  "baseUrl": "https://api.deepseek.com/v1/chat/completions",
+  "model": "deepseek-v4-flash",
+  "fallbackModel": "deepseek-v4-pro",
+  "port": 8787,
+  "temperature": 0.9,
+  "maxTokens": 4096,
+  "useJsonMode": true,
+  "disableThinking": true,
+  "updateUrl": ""
+}
+

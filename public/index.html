@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>仙途 — AI 修仙 MUD</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 背景墨韵 -->
+<div class="bg"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-seal">仙</span>
+    <span class="brand-title">仙途<span class="brand-sub">·苍玄界</span></span>
+  </div>
+  <div class="top-center">
+    <span id="conn" class="conn pending">· 正在接引天道…</span>
+  </div>
+  <div class="top-actions">
+    <span class="btn-group">
+      <button class="btn ghost" id="btn-map" title="苍玄界舆图：已探索区域">地图</button>
+      <button class="btn ghost" id="btn-slots" title="存档管理与回档">存档</button>
+      <button class="btn ghost" id="btn-codex" title="万象阁：图鉴与人物志">万象</button>
+      <button class="btn ghost" id="btn-life" title="此生大事记">生平</button>
+    </span>
+    <span class="btn-group sep">
+      <button class="btn ghost" id="btn-settings" title="游戏设置：画面/文字/外观">设置</button>
+      <button class="btn ghost" id="btn-guide" title="新手引导与玩法说明">指引</button>
+      <button class="btn ghost" id="btn-export" title="导出当前存档">导出</button>
+      <button class="btn ghost" id="btn-import" title="导入存档文件">导入</button>
+    </span>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- 剧情卡片 -->
+  <section class="narrative card" id="narrative">
+    <div class="turn-badge" id="turn-badge">—</div>
+    <div class="idle-bar hidden" id="idle-bar"></div>
+    <div class="narrative-inner" id="narrative-inner">
+      <div class="orn-head">— ✦ —</div>
+      <div class="opening">
+        <img src="logo.png" alt="仙途" class="opening-logo" draggable="false">
+        <div class="opening-title">仙途</div>
+        <div class="opening-line">灵气复苏 · 群雄逐鹿 · 一介凡身亦可问鼎天穹</div>
+        <div class="opening-line dim">天道之下，万事皆有可能——每一步都由你书写</div>
+        <div class="opening-line dim">初入此界？点右上角「指引」查看新手须知</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 面板卡片（多级 tabs） -->
+  <aside class="side">
+    <div class="side-card card">
+      <div class="char-head">
+        <div class="char-name" id="c-name">— <span class="rename-btn" id="btn-rename" title="赐名/改名">改</span></div>
+        <div class="char-meta" id="c-meta">—</div>
+        <div class="bar-row">
+          <div class="bar-label">气血</div>
+          <div class="bar"><div class="bar-fill hp" id="bar-hp"></div></div>
+          <div class="bar-num" id="t-hp">0/0</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">灵力</div>
+          <div class="bar"><div class="bar-fill mp" id="bar-mp"></div></div>
+          <div class="bar-num" id="t-mp">0/0</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">修为</div>
+          <div class="bar"><div class="bar-fill exp" id="bar-exp"></div></div>
+          <div class="bar-num" id="t-exp">0/0</div>
+        </div>
+        <div class="stat-grid" id="c-stats"></div>
+      </div>
+      <div class="side-tabs">
+        <span class="side-tab active" data-pane="bag">行囊</span>
+        <span class="side-tab" data-pane="tech">功法</span>
+        <span class="side-tab" data-pane="quest">因果</span>
+        <span class="side-tab" data-pane="geo">地理</span>
+      </div>
+      <div class="side-body">
+        <div class="side-pane" id="pane-bag">
+          <div class="card-title">行囊 <span class="card-sub" id="bag-count"></span></div>
+          <div class="list-body" id="c-bag"><div class="empty">囊中羞涩</div></div>
+          <div class="bag-note">剧情中直接说「服用聚气丹」等指令即可使用；此处仅作可用之物提醒</div>
+        </div>
+        <div class="side-pane hidden" id="pane-tech">
+          <div class="card-title">功法</div>
+          <div class="list-body" id="c-tech"><div class="empty">尚未习得功法</div></div>
+          <div class="card-title sub">装备</div>
+          <div class="list-body" id="c-equip"><div class="empty">两手空空</div></div>
+        </div>
+        <div class="side-pane hidden" id="pane-quest">
+          <div class="card-title">因果任务</div>
+          <div class="list-body" id="c-quests"><div class="empty">暂无任务</div></div>
+          <div class="card-title sub">未了之事</div>
+          <div class="list-body" id="c-hooks"><div class="empty">身无挂碍</div></div>
+        </div>
+        <div class="side-pane hidden" id="pane-geo">
+          <div class="card-title">所在</div>
+          <div class="loc-name" id="c-loc">—</div>
+          <div class="loc-area" id="c-area">—</div>
+          <div class="card-title sub">已探索</div>
+          <div class="chips-static" id="c-explored"></div>
+          <div class="card-title sub">身中状态</div>
+          <div class="list-body" id="c-conds"><div class="empty">身无挂碍</div></div>
+          <div class="card-title sub">战况</div>
+          <div class="list-body" id="c-enemy"><div class="empty">四下安宁</div></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- 传讯卡片 -->
+<footer class="bottombar">
+  <div class="chat-card card">
+    <div class="chat-head">
+      <span class="chat-title">✦ 言出法随</span>
+      <span class="chat-sub">一切自然语言皆可 —— 你的行动即世界</span>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="input-row">
+      <span class="prompt">＞</span>
+      <input id="cmd" autocomplete="off" spellcheck="false" maxlength="200" placeholder="输入你的行动：向东 / 打坐修炼 / 与钱掌柜交谈 / 查看背包 / 帮助 …">
+      <button class="btn primary" id="btn-send">言出法随</button>
+    </div>
+    <div class="hint" id="hint">↑↓ 翻阅指令历史 · 行囊只作提醒，剧情中直接说「服用聚气丹」即可使用</div>
+  </div>
+</footer>
+
+<!-- 存档管理 -->
+<div class="modal-mask hidden" id="m-slots">
+  <div class="modal">
+    <div class="modal-title">存档 · 三生三界</div>
+    <div class="slot-list" id="slot-list"></div>
+    <div class="modal-actions"><button class="btn ghost" data-close>收起</button></div>
+  </div>
+</div>
+
+<!-- 新角色 -->
+<div class="modal-mask hidden" id="m-new">
+  <div class="modal">
+    <div class="modal-title" id="m-new-title">开辟新档</div>
+    <div class="modal-desc">天道将为你降下凡身，请留下名讳——留空将由天命赐名（NPC 会以此名相称）。</div>
+    <div class="new-row">
+      <input id="new-name" maxlength="12" placeholder="如：楚玄 / 苏长歌 / 无名散修">
+      <button class="btn primary" id="btn-new-go">踏入苍玄界</button>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" data-close>返回</button></div>
+  </div>
+</div>
+
+<!-- 身死 -->
+<div class="modal-mask hidden" id="m-death">
+  <div class="modal death">
+    <div class="death-seal">命陨</div>
+    <div class="modal-title">身死道消</div>
+    <div class="modal-desc" id="death-reason">你倒在了苍玄界的某个角落。</div>
+    <div class="modal-actions">
+      <button class="btn primary" id="btn-revive">原地复活（气血六成·灵石损失一成）</button>
+      <button class="btn danger" id="btn-reinc">轮回转世（福缘+1·传承一本功法·重开一世）</button>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" data-close>先看看</button></div>
+  </div>
+</div>
+
+<!-- 未配置密钥 -->
+<div class="modal-mask hidden" id="m-nokey">
+  <div class="modal">
+    <div class="modal-title">天道未连 · 需配置 API</div>
+    <div class="modal-desc" style="text-align:left">
+      游戏主控（GM）由 DeepSeek 大模型实时演绎，请先完成配置：<br><br>
+      1. 打开游戏目录下的 <b>config.json</b><br>
+      2. 在 <b>apiKey</b> 一栏填入你的 DeepSeek API Key<br>
+      3. 重启服务器（Ctrl+C 后重新 <b>node server.js</b>）<br>
+      4. 也可以配置环境变量 <b>DEEPSEEK_API_KEY</b>，或直接复用本机 opencode 的 DeepSeek 凭证<br><br>
+      获取密钥：https://platform.deepseek.com（价格极低，中文叙事一流）
+    </div>
+    <div class="modal-actions"><button class="btn primary" id="btn-nokey-retry">我已配置，重新连接</button></div>
+  </div>
+</div>
+
+<!-- 放置闭关 -->
+<div class="modal-mask hidden" id="m-idle">
+  <div class="modal">
+    <div class="modal-title">闭关 · 放置修行</div>
+    <div class="modal-desc">
+      入定后真实时间开始流逝（<b>1 真实分钟 = 游戏 2 时辰</b>），游戏内时日与寿元随之消耗，修为按境界效率自动结算——<b>关闭页面照常生效</b>。<br><br>
+      想收心时随时回来，点状态条「出关」即可中断结算。
+    </div>
+    <div class="idle-opts">
+      <button class="btn" data-min="30">半个时辰（30分）</button>
+      <button class="btn" data-min="120">两个时辰（2小时）</button>
+      <button class="btn" data-min="480">一夜（8小时）</button>
+      <button class="btn" data-min="1440">一日（24小时）</button>
+      <button class="btn" data-min="10080">七日（上限）</button>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" data-close>再想想</button></div>
+  </div>
+</div>
+
+<!-- 新手指引 -->
+<div class="modal-mask hidden" id="m-guide">
+  <div class="modal wide">
+    <div class="modal-title">仙途 · 新手须知</div>
+    <div class="guide-sec">
+      <div class="guide-h">这是一款什么样的游戏？</div>
+      <div class="guide-b">「仙途」是 AI 实时演绎的开放式修仙文字世界。你输入任何行动（自然语言即可），DeepSeek 大模型即刻为你演绎世界的回应——没有固定剧本，你的每个选择都真实地改变命运。</div>
+    </div>
+    <div class="guide-sec">
+      <div class="guide-h">初入此界的三个目标</div>
+      <div class="guide-b">① 活下去（妖兽、魔修、寿元都是威胁）　② 找到功法与修炼之道（打坐、拜师、坊市、奇遇）　③ 积累修为突破境界（炼气 → 筑基 → 金丹 → … → 飞升）</div>
+    </div>
+    <div class="guide-sec">
+      <div class="guide-h">怎么玩？</div>
+      <div class="guide-b">
+        底部输入框直接打字行动，或点击快捷指令。右侧面板实时显示你的状态。<br>
+        示例：<b>向北</b> · <b>打坐修炼</b> · <b>与钱掌柜交谈</b> · <b>查看四周</b> · <b>服用聚气丹</b> · <b>攻击妖狼</b> · <b>逃</b> · <b>购买筑基丹</b> —— 任何自然语言都可以。
+      </div>
+    </div>
+    <div class="guide-sec">
+      <div class="guide-h">关键系统</div>
+      <div class="guide-b">
+        <b>修炼</b>：打坐/服丹/搏杀/奇遇 获得修为，圆满后服突破丹晋阶；金丹以上渡天劫。<br>
+        <b>寿元</b>：凡人百年，突破延长寿命。寿元耗尽即坐化——时间是修行最大的敌人。<br>
+        <b>死亡</b>：战死可复活（气血六成、损一成灵石）或轮回转世（福缘+1、传承一本功法）。<br>
+        <b>功法</b>：修炼/攻击/护体/身法/辅助五类，黄玄地天仙五阶，拜师、坊市、奇遇皆可得。<br>
+        <b>因果</b>：NPC 有记忆会记仇报恩，你的选择会埋下长期伏笔并被世界回收。
+      </div>
+    </div>
+    <div class="guide-sec">
+      <div class="guide-h">存档与回档（重要）</div>
+      <div class="guide-b">
+        每一步操作都自动存档，绝不丢进度。想保险起见：点击「存档」→ 选中档位旁的「快照」→ 给当前进度命名保存（每档最多 20 个快照）。任何时候可回档到任意快照，回档前服务器会自动留一份「回档前自动备份」作为后悔药。
+      </div>
+    </div>
+    <div class="guide-sec">
+      <div class="guide-h">新手五步（点一下即完成）</div>
+      <div class="guide-b">
+        <label class="chk"><input type="checkbox" data-step="0"> 与一个 NPC 交谈（如：与钱掌柜交谈）</label>
+        <label class="chk"><input type="checkbox" data-step="1"> 完成一次修炼（打坐 / 运功调息）</label>
+        <label class="chk"><input type="checkbox" data-step="2"> 赚到第一笔灵石（卖材料 / 接任务）</label>
+        <label class="chk"><input type="checkbox" data-step="3"> 服用一颗丹药（行囊点击即可）</label>
+        <label class="chk"><input type="checkbox" data-step="4"> 保存一个快照（存档 → 快照）</label>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn primary" id="btn-guide-close">明白了，踏入仙途</button></div>
+  </div>
+</div>
+
+<!-- 苍玄界 · 舆图（三级：世界 → 区域 → 地点） -->
+<div class="modal-mask hidden" id="m-map">
+  <div class="modal wide map-modal">
+    <div class="map-decor"><div class="map-mist m1"></div><div class="map-mist m2"></div></div>
+    <div class="modal-title" id="map-title">苍玄界 · 舆图</div>
+    <div id="map-crumb" class="map-crumb"></div>
+    <div id="map-body" class="map-body"></div>
+    <div class="modal-actions"><button class="btn ghost" data-close>收舆</button></div>
+  </div>
+</div>
+
+<!-- 万象阁 · 图鉴与人物志 -->
+<div class="modal-mask hidden" id="m-codex">
+  <div class="modal wide codex">
+    <div class="modal-title" id="codex-title">万象阁</div>
+    <div class="codex-tabs" id="codex-tabs">
+      <span class="codex-tab active" data-tab="items">行囊图鉴</span>
+      <span class="codex-tab" data-tab="tech">功法图鉴</span>
+      <span class="codex-tab" data-tab="npcs">人物志</span>
+    </div>
+    <div class="codex-body" id="codex-body"></div>
+    <div class="codex-empty" id="codex-empty">万象阁空空如也——尚未解锁任何条目，走出门去，见见天地。</div>
+    <div class="modal-actions"><button class="btn ghost" data-close>归去</button></div>
+  </div>
+</div>
+
+<!-- 生平 · 大事件表 -->
+<div class="modal-mask hidden" id="m-life">
+  <div class="modal wide">
+    <div class="modal-title">此生 · 大事件表</div>
+    <div class="life-list" id="life-list"></div>
+    <div class="modal-actions"><button class="btn ghost" data-close>归去</button></div>
+  </div>
+</div>
+
+<!-- 快照管理 -->
+<div class="modal-mask hidden" id="m-snaps">
+  <div class="modal wide">
+    <div class="modal-title" id="snaps-title">快照 · 随时存档 / 回档</div>
+    <div class="snap-live" id="snap-live"></div>
+    <div class="new-row" style="margin-bottom:12px">
+      <input id="snap-name" maxlength="20" placeholder="给这一刻命名，如：筑基之前 / 决战前夕">
+      <button class="btn primary" id="btn-snap-save">保存快照</button>
+    </div>
+    <div class="snap-list" id="snap-list"></div>
+    <div class="modal-actions"><button class="btn ghost" data-close>收起</button></div>
+  </div>
+</div>
+
+<input type="file" id="import-file" accept=".json" hidden>
+
+<!-- 全局悬浮说明 -->
+<div class="tip" id="tip"></div>
+
+<!-- 游戏设置 -->
+<div class="modal-mask hidden" id="m-settings">
+  <div class="modal wide settings">
+    <div class="modal-title">设置</div>
+    <div class="settings-nav">
+      <span class="set-tab active" data-sec="view">画面</span>
+      <span class="set-tab" data-sec="text">文字</span>
+      <span class="set-tab" data-sec="other">其他</span>
+    </div>
+    <div class="settings-body">
+      <!-- 画面 -->
+      <div class="set-sec" id="sec-view">
+        <div class="set-row"><div class="set-label">皮肤主题</div>
+          <div class="set-control">
+            <div class="skin-grid" id="skin-grid">
+              <div class="skin-card" data-skin="default"><span class="sk-dot d-default"></span>墨韵金</div>
+              <div class="skin-card" data-skin="xuanqing"><span class="sk-dot d-xuanqing"></span>玄青玉</div>
+              <div class="skin-card" data-skin="zhuxiao"><span class="sk-dot d-zhuxiao"></span>朱砂夜</div>
+              <div class="skin-card" data-skin="baiyue"><span class="sk-dot d-baiyue"></span>白月纸</div>
+              <div class="skin-card" data-skin="heitie"><span class="sk-dot d-heitie"></span>玄铁墨</div>
+            </div>
+          </div>
+        </div>
+        <div class="set-row"><div class="set-label">画面缩放</div>
+          <div class="set-control"><input type="range" id="set-zoom" min="80" max="130" step="5" value="100"><span class="set-val" id="set-zoom-val">100%</span></div>
+        </div>
+        <div class="set-row"><div class="set-label">背景动画</div>
+          <div class="set-control"><label class="set-switch"><input type="checkbox" id="set-anim" checked><span class="sw-track"></span></label></div>
+        </div>
+      </div>
+      <!-- 文字 -->
+      <div class="set-sec hidden" id="sec-text">
+        <div class="set-row"><div class="set-label">叙事字号</div>
+          <div class="set-control"><input type="range" id="set-narr" min="14" max="24" step="1" value="17"><span class="set-val" id="set-narr-val">17px</span></div>
+        </div>
+        <div class="set-row"><div class="set-label">面板字号</div>
+          <div class="set-control"><input type="range" id="set-panel" min="12" max="20" step="1" value="14.5"><span class="set-val" id="set-panel-val">14.5px</span></div>
+        </div>
+        <div class="set-row"><div class="set-label">字体风格</div>
+          <div class="set-control">
+            <select id="set-font" class="set-select">
+              <option value="default">默认（宋体衬线）</option>
+              <option value="kai">楷体</option>
+              <option value="song">宋体</option>
+              <option value="hei">黑体（无衬线）</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <!-- 其他 -->
+      <div class="set-sec hidden" id="sec-other">
+        <div class="set-row"><div class="set-label">API 密钥</div>
+          <div class="set-control">
+            <input type="password" id="set-apikey" class="set-input" placeholder="留空则使用本机 opencode 凭证" style="width:220px">
+            <button class="btn" id="set-apikey-save">保存</button>
+            <span class="set-val" id="set-apikey-state"></span>
+          </div>
+        </div>
+        <div class="set-row"><div class="set-label">一键更新</div>
+          <div class="set-control">
+            <button class="btn" id="set-update">检查更新</button>
+            <span class="set-val" id="set-update-state"></span>
+            <button class="btn primary hidden" id="set-relaunch">重启生效</button>
+            <button class="btn hidden" id="set-dlexe">下载新版本</button>
+            <button class="btn hidden" id="set-openpath">打开文件夹</button>
+          </div>
+        </div>
+        <div class="set-row"><div class="set-label">版本信息</div>
+          <div class="set-control"><span class="set-note" id="set-version">…</span></div>
+        </div>
+        <div class="set-row"><div class="set-label">清除本地设置</div>
+          <div class="set-control"><button class="btn" id="set-reset">恢复默认设置</button></div>
+        </div>
+        <div class="set-row"><div class="set-label">存档位置</div>
+          <div class="set-control"><span class="set-note" id="set-datadir">…</span></div>
+        </div>
+        <div class="set-row"><div class="set-label">关于</div>
+          <div class="set-control"><span class="set-note">仙途 · 苍玄界 · AI 实时演绎修仙世界 · 模型 deepseek-v4-flash</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn primary" data-close>完成</button></div>
+  </div>
+</div>
+
+<!-- 天机阁 · 档案问答（游戏外，不耗回合；悬浮球可拖动） -->
+<button class="qa-fab" id="qa-fab" title="天机阁：询问前文发生过的事（按住可拖动）">天机</button>
+<div class="qa-wrap hidden" id="qa-wrap">
+  <div class="qa-panel">
+    <div class="qa-head">
+      <span>天机阁 · 档案问答</span>
+      <span class="qa-close" id="qa-close">✕</span>
+    </div>
+    <div class="qa-body" id="qa-body">
+      <div class="qa-msg qa-bot">老朽掌管内务档案，你此生的言行皆在卷中。想问谁说过什么、去过哪里、恩怨缘由，尽管问来。</div>
+    </div>
+    <div class="qa-input-row">
+      <input id="qa-input" maxlength="500" placeholder="问档案：钱掌柜说过什么？我去过哪些地方？…">
+      <button class="btn primary" id="qa-send">问询</button>
+    </div>
+    <div class="qa-hint">依据你的人生档案如实回答，不影响游戏进程</div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

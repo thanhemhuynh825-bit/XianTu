@@ -1,0 +1,42 @@
+{
+  "name": "xiantu",
+  "productName": "仙途",
+  "version": "1.0.0",
+  "description": "仙途 — AI 实时演绎修仙文字世界",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.xiantu.game",
+    "productName": "仙途",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "desktop/main.js",
+      "desktop/preload.js",
+      "server.js",
+      "game/**",
+      "public/**",
+      "config.json"
+    ],
+    "win": {
+      "target": [
+        "portable",
+        "dir"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "仙途-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "asar": true
+  }
+}
