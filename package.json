@@ -34,7 +34,7 @@
         "dir"
       ],
       "icon": "build/icon.ico",
-      "artifactName": "仙途-${version}.${ext}",
+      "artifactName": "XianTu-${version}.${ext}",
       "signAndEditExecutable": false
     },
     "asar": true
