@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 /* ============================================================
  * 《仙途·苍玄界》 — 服务器
@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const GAME_VERSION = '1.3.0';
+const GAME_VERSION = '1.3.1';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录

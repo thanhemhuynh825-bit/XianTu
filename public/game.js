@@ -84,25 +84,41 @@ async function api(path, body) {
   return res.json();
 }
 
-/* ---------- 引导 ---------- */
+/* ---------- 引导与启动页 ---------- */
 async function bootstrap() {
   try {
     const boot = await api('/api/bootstrap');
     if (!boot.ok) throw new Error('bootstrap failed');
     setConn(boot.configured ? 'ok' : 'bad', boot.configured ? `· 天道相连 · ${boot.model}` : '· 天道未连 · 需配置 API');
     window.__boot = boot;
+    $('menu-ver').textContent = `v${boot.model ? '' : ''}${boot.model || ''} · 一路修行，仙途漫漫`;
     if (!boot.configured) { showModal('m-nokey'); return; }
-    maybeShowGuide();
-    const last = localStorage.getItem('xmx_slot');
-    let auto = boot.slots.find(s => s.has && s.slot === Number(last));
-    if (!auto) auto = boot.slots.filter(s => s.has).sort((a, b) => b.updated - a.updated)[0]; // 兜底：进入最近玩过的档
-    if (auto) { app.slot = auto.slot; fetchState(auto.slot); }
-    else showSlots();
+    showMenu();
+    /* 首次进入：启动页之上率先展示指引；之后不再自动弹出（上栏保留指引按钮） */
+    if (!localStorage.getItem(GUIDE_KEY)) setTimeout(() => openGuide(true), 900);
   } catch {
     setConn('bad', '· 无法连接服务器');
     showModal('m-nokey');
   }
 }
+
+/* 启动页（主菜单）：开始游戏 / 设置 / 指引 */
+function showMenu() { $('m-menu').classList.remove('hidden'); }
+function hideMenu() {
+  $('m-menu').classList.add('hidden');
+  const imgs = document.querySelectorAll('#menu-bg .mb-img');
+  imgs.forEach((im, i) => im.classList.toggle('active', i === 0));
+}
+let menuIdx = 0;
+const menuImgs = document.querySelectorAll('#menu-bg .mb-img');
+setInterval(() => {
+  if ($('m-menu').classList.contains('hidden')) return;
+  menuIdx = (menuIdx + 1) % menuImgs.length;
+  menuImgs.forEach((im, i) => im.classList.toggle('active', i === menuIdx));
+}, 9000);
+$('btn-menu-start').addEventListener('click', () => { showSlots(); }); // 选存档后进入（隐藏启动页在进入时）
+$('btn-menu-settings').addEventListener('click', () => { applySettings(); showModal('m-settings'); });
+$('btn-menu-guide').addEventListener('click', () => openGuide(false));
 
 function setConn(state, text) {
   const el = $('conn');
@@ -391,6 +407,7 @@ async function send(cmd) {
     renderState(res.state);
     renderChips();
     localStorage.setItem('xmx_slot', String(app.slot));
+    hideMenu(); // 新建成功，进入游戏
     if (res.cutscene) showCutscene(res.cutscene);
     pushUnlocks(res.unlocks);
   } catch (e) {
@@ -509,6 +526,7 @@ function renderSnaps(slot, list) {
 
 function enter(slot) {
   app.slot = slot;
+  hideMenu(); // 进入游戏，隐藏启动页
   fetchState(slot);
 }
 
@@ -1341,7 +1359,10 @@ $('cmd').addEventListener('keydown', e => {
 $('btn-slots').addEventListener('click', showSlots);
 $('btn-life').addEventListener('click', openLife);
 $('btn-guide').addEventListener('click', () => openGuide(false));
-$('btn-guide-close').addEventListener('click', () => hideModal('m-guide'));
+$('btn-guide-close').addEventListener('click', () => {
+  localStorage.setItem(GUIDE_KEY, JSON.stringify(guideState())); // 已看过指引：此后不再自动弹出
+  hideModal('m-guide');
+});
 $('btn-snap-save').addEventListener('click', async () => {
   if (!app.snapSlot) return;
   const name = $('snap-name').value.trim();

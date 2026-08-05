@@ -731,6 +731,38 @@ body {
 .char-dise .dise-chip[data-kind="talent"] { color: var(--jade); border-color: rgba(143,191,127,.35); background: rgba(143,191,127,.06); }
 .char-dise .dise-chip[data-kind="talent"] b { color: inherit; }
 
+/* ===== 启动页（主菜单） ===== */
+.menu-screen {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  background: var(--bg);
+}
+.menu-screen.hidden { display: none; }
+.menu-bg { position: absolute; inset: 0; }
+.menu-bg .mb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  opacity: 0; transition: opacity 2s ease; filter: saturate(.85) brightness(.6); }
+.menu-bg .mb-img.active { opacity: 1; }
+.menu-shade { position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 42%, rgba(13,11,9,.35), rgba(13,11,9,.86) 78%); }
+.menu-content { position: relative; z-index: 1; text-align: center; padding: 0 24px; }
+.menu-logo {
+  width: 132px; height: 132px; border-radius: 18px;
+  box-shadow: 0 0 44px rgba(201,168,106,.4), 0 14px 44px rgba(0,0,0,.65);
+  animation: logo-in 1s cubic-bezier(.2,.8,.2,1) both;
+}
+.menu-title { font-family: var(--kai); font-size: 58px; color: var(--gold-b); letter-spacing: .3em;
+  margin-right: -.3em; margin-top: 16px; text-shadow: 0 0 34px rgba(201,168,106,.4);
+  animation: rise .8s .15s ease both; }
+.menu-sub { color: var(--ink-dim); font-size: 15px; letter-spacing: .3em; margin-top: 10px;
+  animation: rise .8s .3s ease both; }
+.menu-btns { margin-top: 44px; display: flex; flex-direction: column; gap: 14px; align-items: center;
+  animation: rise .8s .45s ease both; }
+.menu-btn { min-width: 220px; padding: 12px 0; font-size: 16px; letter-spacing: .3em; border-radius: 6px; }
+.menu-btn-main { font-size: 18px; padding: 14px 0; box-shadow: 0 8px 30px rgba(192,82,58,.35); }
+.menu-ver { margin-top: 34px; font-size: 11.5px; color: rgba(148,137,122,.6); letter-spacing: .15em;
+  animation: rise .8s .6s ease both; }
+
 /* ===== 解锁动效：新物品/NPC/任务 中央渐显 ===== */
 #m-unlock { background: rgba(5,4,3,.72); backdrop-filter: blur(2px); }
 .unlock-card {
