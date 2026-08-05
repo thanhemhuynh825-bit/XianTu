@@ -383,6 +383,11 @@ body[data-skin="heitie"] { --scroll-thumb: #3a3a30; }
 .bc-row .bc-bar .mine { background: linear-gradient(90deg, #3a7a5f, var(--jade)); height: 100%; }
 .bc-row .bc-bar .foe { background: linear-gradient(90deg, #7c2c1c, var(--cinnabar)); height: 100%; }
 .bc-row .bc-num { min-width: 84px; text-align: right; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.bc-row .bc-diff { font-size: 12px; font-weight: 600; }
+.bc-diff.diff-green { color: var(--jade); }
+.bc-diff.diff-yellow { color: #d9c06b; }
+.bc-diff.diff-orange { color: #d9a96b; }
+.bc-diff.diff-red { color: var(--cinnabar); }
 
 .list-body { display: flex; flex-direction: column; gap: 5px; }
 .list-body .empty { color: var(--ink-faint); font-size: 13px; padding: 4px 0; }

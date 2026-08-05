@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const GAME_VERSION = '1.6.0';
+const GAME_VERSION = '1.7.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -447,6 +447,11 @@ async function gmTurn(slot, st, command, opts = {}) {
     state: safeView(st),
     cutscene: fused.cutscene || null, // 重大节点过场（一次性展示，不落档）
     unlocks: detectUnlocks(st, invBefore, npcBefore, questBefore, fused),
+    battle: st.enemy && rolls ? { // 战斗回合：凶险骰与战术杠杆（玩家可见，公平透明）
+      danger: rolls.danger,
+      lever: st.enemy.lever || 0,
+      diff: st.enemy.diff || '',
+    } : null,
   };
 }
 

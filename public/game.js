@@ -300,18 +300,18 @@ function renderState(st) {
     ? st.conditions.map(c => `<div class="quest-row" data-tip="${esc(`${c.desc || '持续中'} · 服务器每回合自动结算`)}"><span class="q-t" style="color:#e08a72">✚ ${esc(c.name)}</span><span class="q-d">剩${c.turns}回合${c.hpPerTurn ? `·每回气血${c.hpPerTurn}` : ''}${c.mpPerTurn ? `·每回灵力${c.mpPerTurn}` : ''}</span></div>`).join('')
     : '<div class="empty">身无挂碍</div>';
 
-  /* 战况（战斗状态机 + 攻防对比条） */
+  /* 战况（战斗状态机 + 战力评估 + 战术杠杆 + 攻防对比） */
   if (st.enemy) {
     const e = st.enemy;
     const a = st.attrs;
-    const pct = (mine, foe) => {
-      const tot = mine + foe || 1;
-      return Math.round(mine / tot * 100);
-    };
+    const pct = (mine, foe) => { const tot = mine + foe || 1; return Math.round(mine / tot * 100); };
+    const diffCls = /悬殊/.test(e.diff) ? 'diff-red' : /远非|吃力/.test(e.diff) ? 'diff-orange' : /略胜|占优/.test(e.diff) ? 'diff-green' : 'diff-yellow';
     $('c-enemy').innerHTML = `<div class="quest-row" data-tip="${esc(`${e.name}：${e.realm}${e.desc ? '｜' + e.desc : ''}`)}">
         <span class="q-t" style="color:var(--cinnabar)">⚔ ${esc(e.name)}</span>
         <span class="q-d">${esc(e.realm)} · 气血 ${e.hp}/${e.maxHp}</span>
       </div>
+      ${e.diff ? `<div class="bc-row"><span class="bc-label">战力评估</span><span class="bc-diff ${diffCls}">${esc(e.diff)}</span></div>` : ''}
+      ${e.lever ? `<div class="bc-row"><span class="bc-label">战术杠杆</span><div class="bc-bar"><span class="mine" style="width:${Math.min(100, e.lever * 2)}%"></span></div><span class="bc-num">+${e.lever}</span></div>` : ''}
       <div class="battle-compare">
         <div class="bc-row"><span class="bc-label">攻击</span><div class="bc-bar"><span class="mine" style="width:${pct(a.attack, e.atk)}%"></span><span class="foe" style="width:${100 - pct(a.attack, e.atk)}%"></span></div><span class="bc-num">你 ${a.attack} · 敌 ${e.atk || '?'}</span></div>
         <div class="bc-row"><span class="bc-label">防御</span><div class="bc-bar"><span class="mine" style="width:${pct(a.defense, e.def)}%"></span><span class="foe" style="width:${100 - pct(a.defense, e.def)}%"></span></div><span class="bc-num">你 ${a.defense} · 敌 ${e.def || '?'}</span></div>
@@ -320,6 +320,11 @@ function renderState(st) {
   } else {
     $('c-enemy').innerHTML = '<div class="empty">四下安宁</div>';
   }
+  /* 战斗留痕（最近 3 场） */
+  const blog = (st.battleLog || []).slice(-3).reverse();
+  $('c-battles').innerHTML = blog.length
+    ? blog.map(b => `<div class="bc-row"><span class="bc-label">战记</span><span style="color:${b.result === '败亡' ? 'var(--jade)' : 'var(--ink-dim)'}">第${b.t}回 · ${esc(b.foe)}（${esc(b.realm || '')}）${esc(b.result)}${b.lever ? ` · 杠杆+${b.lever}` : ''}</span></div>`).join('')
+    : '<div class="empty">尚无战斗留痕</div>';
 
   /* 闭关状态条 */
   renderIdleBar(st);
@@ -455,7 +460,12 @@ async function send(cmd) {
     renderChips();
     localStorage.setItem('xmx_slot', String(app.slot));
     audioScene(res.state); // 场景化 BGM 切换
-    hideMenu(); // 新建成功，进入游戏
+    hideMenu(); // 若仍在启动页（切档进入）则隐藏
+    if (res.battle && res.battle.lever) {
+      /* 战斗骰与杠杆：让玩家直观看到自己的智取在生效 */
+      const eff = res.battle.danger - res.battle.lever;
+      appendTurn({ narration: `（战况）凶险骰 ${res.battle.danger} · 战术杠杆 −${res.battle.lever} → 有效 ${Math.max(0, eff)}${eff < 30 ? '，敌势已衰，战机在你' : eff > 60 ? '，凶多吉少，速谋退路' : '，胜负未分'}` });
+    }
     if (res.cutscene) showCutscene(res.cutscene);
     pushUnlocks(res.unlocks);
   } catch (e) {

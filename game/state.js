@@ -158,7 +158,8 @@ function newState(name = '无名散修', traits = {}) {
     beats: [],     // 剧情链：每回合 GM 输出的一句话摘要（脉络速览，最近 40 条）
     news: [],      // 天下大势：世界快讯 [{t, text, kind}]（江湖/人物/天象/势力，最近 30 条）
     conditions: [], // 状态：中毒/内伤/煞气等 [{name, desc, turns, hpPerTurn, mpPerTurn}]，服务器每回合自动结算
-    enemy: null,    // 战斗状态机：{name, realm, hp, maxHp, mp, atk, def}（战斗中由 GM 更新，快照可见）
+    enemy: null,    // 战斗状态机：{name, realm, hp, maxHp, mp, atk, def, diff, lever}（战斗中由 GM 更新，快照可见）
+    battleLog: [],  // 战斗留痕：[{t, foe, realm, result, lever}]（玩家可回顾"这一仗怎么赢的"）
     visited: {},    // 到访记录（地图数据源）：{地点: {area, firstTurn, lastTurn, count}}
     mapPos: { ...MAP_SKELETON }, // 舆图坐标：区域 → [x, y]
     scene: null,   // 当前场景锚点：{npcs, desc, mood}（GM 维护，保证场景连贯）
@@ -250,6 +251,7 @@ function normalizeState(s) {
   s.memory = Array.isArray(s.memory) ? s.memory.slice(-25) : [];
   s.beats = Array.isArray(s.beats) ? s.beats.slice(-40) : [];
   s.news = Array.isArray(s.news) ? s.news.slice(-30) : [];
+  s.battleLog = Array.isArray(s.battleLog) ? s.battleLog.slice(-30) : [];
   s.conditions = Array.isArray(s.conditions) ? s.conditions.filter(c => c && c.name && (c.turns || 0) > 0).slice(-10) : [];
   s.enemy = s.enemy && s.enemy.name ? s.enemy : null;
   s.visited = s.visited || {};
@@ -508,7 +510,18 @@ function applyEffects(s, fx) {
     const e = typeof fx.enemy === 'string' ? { name: fx.enemy } : fx.enemy;
     const cur = s.enemy || {};
     const name = e && (e.name || cur.name);
-    if (!name) { s.enemy = null; }
+    if (!name) {
+      /* 战斗结束：记录战果留痕 */
+      if (cur.name) {
+        s.battleLog = s.battleLog || [];
+        s.battleLog.push({
+          t: s.turns + 1, foe: cur.name, realm: cur.realm,
+          result: '脱身/结束', lever: cur.lever || 0,
+        });
+        if (s.battleLog.length > 30) s.battleLog = s.battleLog.slice(-30);
+      }
+      s.enemy = null;
+    }
     else {
       s.enemy = {
         name: String(name).slice(0, 20),
@@ -519,9 +532,18 @@ function applyEffects(s, fx) {
         atk: num(e.atk ?? cur.atk ?? 0),
         def: num(e.def ?? cur.def ?? 0),
         desc: String(e.desc || cur.desc || '').slice(0, 60),
+        diff: String(e.diff || cur.diff || '').slice(0, 40),   // 战力评估（玩家视角）
+        lever: num(e.lever ?? cur.lever ?? 0),                 // 战术杠杆（智取累积加成）
       };
-      if (s.enemy.hp <= 0) { events.push({ t: 'gain', text: `${s.enemy.name}已败亡` }); s.enemy = null; }
-      else events.push({ t: 'system', text: `战况：${s.enemy.name}（${s.enemy.realm}）气血 ${s.enemy.hp}/${s.enemy.maxHp}` });
+      if (s.enemy.hp <= 0) {
+        s.battleLog = s.battleLog || [];
+        s.battleLog.push({ t: s.turns + 1, foe: s.enemy.name, realm: s.enemy.realm, result: '败亡', lever: s.enemy.lever });
+        if (s.battleLog.length > 30) s.battleLog = s.battleLog.slice(-30);
+        events.push({ t: 'gain', text: `${s.enemy.name}已败亡` });
+        s.enemy = null;
+      } else {
+        events.push({ t: 'system', text: `战况：${s.enemy.name}（${s.enemy.realm}）气血 ${s.enemy.hp}/${s.enemy.maxHp}` });
+      }
     }
   }
 
@@ -824,7 +846,7 @@ function extractItemSentence(narration, itemName) {
 
 /* ---------- 回合快照链：每回合存核心状态，支持任意回滚（最近 300 回合） ---------- */
 const TURN_SNAP_MAX = 300;
-const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'visited', 'mapPos'];
+const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'battleLog', 'visited', 'mapPos'];
 function snapCore(st) {
   const core = {};
   for (const k of CORE_FIELDS) {
