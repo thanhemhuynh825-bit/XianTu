@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const GAME_VERSION = '1.8.0';
+const GAME_VERSION = '1.9.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -61,7 +61,7 @@ const qaMem = new Map(); // slot -> {name, hist:[{q,a}]} 天机问答记忆（�
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
 };
 
 function ensureDirs() { if (!fs.existsSync(SAVES)) fs.mkdirSync(SAVES, { recursive: true }); }
@@ -469,6 +469,7 @@ function readBody(req) {
 }
 
 function staticServe(req, res, pathname) {
+  try { pathname = decodeURIComponent(pathname); } catch { /* 非法编码按原样 */ }
   let rel = pathname === '/' ? 'index.html' : pathname;
   let fp = path.normalize(path.join(PUBLIC, rel));
   if (RES_DIR) {

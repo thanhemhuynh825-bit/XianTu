@@ -14,6 +14,8 @@ const AudioSys = (() => {
   let genNodes = []; // 程序化音乐的活动节点
   let settings = { music: true, volume: 0.5 };
   let sceneTimer = null;
+  const GAME_BGM = 'audio/游戏BGM.mp3'; // 玩家自定义单曲循环 BGM
+  let singleMode = false; // true：已加载玩家 BGM，全局单曲循环，不再随场景切换
 
   /* ---------- 场景判定（由外部调用方驱动） ---------- */
   const TAGS = [
@@ -114,9 +116,9 @@ const AudioSys = (() => {
     a.addEventListener('error', () => cb(false), { once: true });
   }
 
-  /* ---------- 场景切换（交叉淡化） ---------- */
+  /* ---------- 场景切换（交叉淡化；单曲模式不再切换） ---------- */
   function switchTo(tag) {
-    if (!ctx || current.tag === tag) return;
+    if (!ctx || current.tag === tag || singleMode) return;
     const old = current;
     current = { tag, type: null };
     if (old.src) {
@@ -153,10 +155,27 @@ const AudioSys = (() => {
   /* ---------- 对外 ---------- */
   function init() {
     ensureCtx();
-    switchTo('menu');
+    /* 玩家自定义 BGM（游戏BGM.mp3）：存在则全局单曲循环，不再随场景换曲 */
+    fileExists(GAME_BGM, ok => {
+      if (ok) {
+        singleMode = true;
+        genStop();
+        const src = new Audio(GAME_BGM);
+        src.loop = true;
+        src.volume = 0;
+        src.play().catch(() => {});
+        const fade = ctx.createGain();
+        src.connect(fade); fade.connect(musicGain);
+        fade.gain.setValueAtTime(0.0001, ctx.currentTime);
+        fade.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 3);
+        current = { tag: 'single', type: 'file', src };
+      } else {
+        switchTo('menu');
+      }
+    });
   }
   function update(st) {
-    if (!ctx) return;
+    if (!ctx || singleMode) return; // 单曲模式下世界照常运转，音乐始终循环
     const tag = sceneOf(st);
     switchTo(tag);
   }
