@@ -152,6 +152,7 @@ function newState(name = '无名散修', traits = {}) {
     itemSeen: {},  // 剧情见闻：服务器从叙事自动摘录的物品原文 {name: {t, text}}
     npcs: {},      // 人物志：GM 通过 effects.npcs 登记 {name: {name, power, desc, firstTurn, turns}}
     npcSeen: {},   // 人物见闻：服务器从叙事自动摘录的句子 {name: [{t, text}]}
+    pets: {},      // 灵宠栏：GM 通过 effects.pets 登记 {name: {name, realm, desc, firstTurn, turns}}（收服/结契/孵化时登记，战斗可助攻）
     memory: [],    // 长期记忆：GM 定期归档的剧情摘要 [{t, text}]
     hooks: [],     // 未了之事：伏笔/恩怨/承诺 [{id, text, turn, open}]
     quotes: [],    // 台词存档：服务器自动提取的引号内容 [{t, text}]
@@ -210,6 +211,7 @@ function normalizeState(s) {
   s.itemSeen = s.itemSeen || {};
   s.npcs = s.npcs || {};
   s.npcSeen = s.npcSeen || {};
+  s.pets = s.pets || {}; // 旧档兼容：无灵宠则自动补空栏，有则原样保留
 
   /* 旧档迁移：从世界记事（npc_ 前缀）恢复人物档案，并从历史日志提取见闻 */
   if (s.world && s.world.flags) {
@@ -529,8 +531,8 @@ function applyEffects(s, fx) {
         hp: num(e.hp ?? cur.hp),
         maxHp: num(e.maxHp ?? cur.maxHp ?? (e.hp ?? 0)),
         mp: num(e.mp ?? cur.mp ?? 0),
-        atk: num(e.atk ?? cur.atk ?? 0),
-        def: num(e.def ?? cur.def ?? 0),
+        atk: e.atk != null || cur.atk != null ? num(e.atk ?? cur.atk ?? 0) : undefined, // 可选：不写则不存在（综合判定模式）
+        def: e.def != null || cur.def != null ? num(e.def ?? cur.def ?? 0) : undefined,
         desc: String(e.desc || cur.desc || '').slice(0, 60),
         diff: String(e.diff || cur.diff || '').slice(0, 40),   // 战力评估（玩家视角）
         lever: num(e.lever ?? cur.lever ?? 0),                 // 战术杠杆（智取累积加成）
@@ -602,6 +604,23 @@ function applyEffects(s, fx) {
       }
       s.npcs[p.name] = entry;
       events.push({ t: 'quest', text: `识得人物：${p.name}${entry.power ? `（${entry.power}）` : ''}` });
+    }
+  }
+
+  /* 灵宠登记：收服/结契/孵化时写 effects.pets（灵宠栏数据源） */
+  if (fx.pets != null) {
+    s.pets = s.pets || {};
+    for (const p of Array.isArray(fx.pets) ? fx.pets : [fx.pets]) {
+      if (!p || !p.name) continue;
+      const old = s.pets[p.name];
+      s.pets[p.name] = {
+        name: p.name,
+        realm: String(p.realm || (old && old.realm) || '凡兽').slice(0, 20),
+        desc: String(p.desc || (old && old.desc) || '').slice(0, 120),
+        firstTurn: old ? old.firstTurn : s.turns + 1,
+        turns: old ? [...(old.turns || []).slice(-49), s.turns + 1] : [s.turns + 1],
+      };
+      events.push({ t: 'quest', text: `灵宠同游：${p.name}${p.realm ? `（${p.realm}）` : ''}` });
     }
   }
 
@@ -846,7 +865,7 @@ function extractItemSentence(narration, itemName) {
 
 /* ---------- 回合快照链：每回合存核心状态，支持任意回滚（最近 300 回合） ---------- */
 const TURN_SNAP_MAX = 300;
-const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'battleLog', 'visited', 'mapPos'];
+const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'pets', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'battleLog', 'visited', 'mapPos'];
 function snapCore(st) {
   const core = {};
   for (const k of CORE_FIELDS) {

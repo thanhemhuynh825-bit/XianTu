@@ -295,28 +295,35 @@ function renderState(st) {
     ? st.hooks.map(h => `<div class="quest-row" data-tip="${esc(`于第 ${h.turn} 回合结下。了结它，或让时间给它一个交代。`)}"><span class="q-t" style="color:var(--gold)">✧ ${esc(h.text)}</span><span class="q-d">第${h.turn}回</span></div>`).join('')
     : '<div class="empty">身无挂碍</div>';
 
+  /* 灵宠栏（收服/结契/孵化后由 GM 登记，自动展示；旧档无灵宠显示空态） */
+  const pets = Object.values(st.pets || {});
+  $('pets-count').textContent = pets.length ? `${pets.length} 只` : '';
+  $('c-pets').innerHTML = pets.length
+    ? pets.map(p => `<div class="quest-row" data-tip="${esc(`${p.name}（${p.realm || '凡兽'}）\n${p.desc || '来历不明的灵兽，与你有缘。'}\n第 ${p.firstTurn} 回合结缘同游，战斗中可助攻（受新鲜感法则约束）。`)}"><span class="q-t" style="color:var(--jade)">✦ ${esc(p.name)}</span><span class="q-d">${esc(p.realm || '凡兽')}</span></div>`).join('')
+    : '<div class="empty">尚未收服灵宠</div>';
+
   /* 身中状态（中毒/内伤等，服务器自动结算） */
   $('c-conds').innerHTML = (st.conditions && st.conditions.length)
     ? st.conditions.map(c => `<div class="quest-row" data-tip="${esc(`${c.desc || '持续中'} · 服务器每回合自动结算`)}"><span class="q-t" style="color:#e08a72">✚ ${esc(c.name)}</span><span class="q-d">剩${c.turns}回合${c.hpPerTurn ? `·每回气血${c.hpPerTurn}` : ''}${c.mpPerTurn ? `·每回灵力${c.mpPerTurn}` : ''}</span></div>`).join('')
     : '<div class="empty">身无挂碍</div>';
 
-  /* 战况（战斗状态机 + 战力评估 + 战术杠杆 + 攻防对比） */
+  /* 战况（战斗状态机 + 战力评估 + 战术杠杆；攻防对比仅作可视化参考，胜负由天道综合裁定） */
   if (st.enemy) {
     const e = st.enemy;
     const a = st.attrs;
     const pct = (mine, foe) => { const tot = mine + foe || 1; return Math.round(mine / tot * 100); };
     const diffCls = /悬殊/.test(e.diff) ? 'diff-red' : /远非|吃力/.test(e.diff) ? 'diff-orange' : /略胜|占优/.test(e.diff) ? 'diff-green' : 'diff-yellow';
-    $('c-enemy').innerHTML = `<div class="quest-row" data-tip="${esc(`${e.name}：${e.realm}${e.desc ? '｜' + e.desc : ''}`)}">
+    const hasAtk = e.atk != null, hasDef = e.def != null;
+    $('c-enemy').innerHTML = `<div class="quest-row" data-tip="${esc(`${e.name}：${e.realm}${e.desc ? '｜' + e.desc : ''}\n胜负由天道综合修为/法宝/功法/战术裁定，攻防数值仅供参考。`)}">
         <span class="q-t" style="color:var(--cinnabar)">⚔ ${esc(e.name)}</span>
         <span class="q-d">${esc(e.realm)} · 气血 ${e.hp}/${e.maxHp}</span>
       </div>
       ${e.diff ? `<div class="bc-row"><span class="bc-label">战力评估</span><span class="bc-diff ${diffCls}">${esc(e.diff)}</span></div>` : ''}
       ${e.lever ? `<div class="bc-row"><span class="bc-label">战术杠杆</span><div class="bc-bar"><span class="mine" style="width:${Math.min(100, e.lever * 2)}%"></span></div><span class="bc-num">+${e.lever}</span></div>` : ''}
-      <div class="battle-compare">
-        <div class="bc-row"><span class="bc-label">攻击</span><div class="bc-bar"><span class="mine" style="width:${pct(a.attack, e.atk)}%"></span><span class="foe" style="width:${100 - pct(a.attack, e.atk)}%"></span></div><span class="bc-num">你 ${a.attack} · 敌 ${e.atk || '?'}</span></div>
-        <div class="bc-row"><span class="bc-label">防御</span><div class="bc-bar"><span class="mine" style="width:${pct(a.defense, e.def)}%"></span><span class="foe" style="width:${100 - pct(a.defense, e.def)}%"></span></div><span class="bc-num">你 ${a.defense} · 敌 ${e.def || '?'}</span></div>
-        <div class="bc-row"><span class="bc-label">身法</span><div class="bc-bar"><span class="mine" style="width:${pct(a.agility, Math.max(1, Math.round((e.atk || 4) / 2)))}%"></span><span class="foe" style="width:${100 - pct(a.agility, Math.max(1, Math.round((e.atk || 4) / 2)))}%"></span></div><span class="bc-num">你 ${a.agility}</span></div>
-      </div>`;
+      ${(hasAtk || hasDef) ? `<div class="battle-compare">
+        ${hasAtk ? `<div class="bc-row"><span class="bc-label">攻击</span><div class="bc-bar"><span class="mine" style="width:${pct(a.attack, e.atk)}%"></span><span class="foe" style="width:${100 - pct(a.attack, e.atk)}%"></span></div><span class="bc-num">你 ${a.attack} · 敌 ${e.atk}</span></div>` : ''}
+        ${hasDef ? `<div class="bc-row"><span class="bc-label">防御</span><div class="bc-bar"><span class="mine" style="width:${pct(a.defense, e.def)}%"></span><span class="foe" style="width:${100 - pct(a.defense, e.def)}%"></span></div><span class="bc-num">你 ${a.defense} · 敌 ${e.def}</span></div>` : ''}
+      </div>` : '<div class="bc-row"><span class="bc-label">判定</span><span class="bc-num" style="color:var(--ink-faint)">天道综合修为·法宝·战术裁定</span></div>'}`;
   } else {
     $('c-enemy').innerHTML = '<div class="empty">四下安宁</div>';
   }
@@ -1498,6 +1505,39 @@ function toggleModal(id) { $(id).classList.toggle('hidden'); }
 
 /* ---------- 事件绑定 ---------- */
 $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').value = ''));
+
+/* ---------- 语音输入：浏览器/Electron 内置语音识别（零配置零密钥，需联网） ---------- */
+(() => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = $('btn-mic');
+  if (!SR || !mic) return;
+  let rec = null, recOn = false;
+  const setMic = on => {
+    recOn = on;
+    mic.classList.toggle('on', on);
+    mic.title = on ? '听音中…点击停止' : '语音输入：说中文，自动转成文字填入（需联网）';
+  };
+  mic.addEventListener('click', () => {
+    if (recOn) { rec.stop(); return; }
+    if (!rec) {
+      rec = new SR();
+      rec.lang = 'zh-CN';
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.onresult = ev => {
+        const txt = Array.from(ev.results || []).map(r => r[0].transcript).join('，').trim();
+        const cmd = $('cmd');
+        cmd.value = (cmd.value ? cmd.value.trimEnd() + '，' : '') + txt;
+        cmd.focus();
+        setMic(false);
+      };
+      rec.onerror = () => { appendTurn({ narration: '（听音落空：语音识别需要联网，可重试或直接打字）' }); setMic(false); };
+      rec.onend = () => setMic(false);
+    }
+    try { rec.start(); setMic(true); } catch { setMic(false); }
+  });
+})();
+
 $('cmd').addEventListener('keydown', e => {
   if (e.key === 'Enter') { send($('cmd').value); $('cmd').value = ''; }
   if (e.key === 'ArrowUp' && app.cmdHist.length) {

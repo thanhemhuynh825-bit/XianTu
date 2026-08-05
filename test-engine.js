@@ -200,5 +200,28 @@ require('./game/llm').chat = async () => {
   evE = state.applyEffects(sE, { enemy: { hp: 0 } });
   console.log('[战斗] 败亡清除:', sE.enemy === null, '| 事件:', evE.some(e => /败亡/.test(e.text)));
 
-  console.log('\n引擎 v12 全部通过 ✓');
+  /* 灵宠登记：收服/更新/快照/旧档自动补空 */
+  const sP = state.newState('宠');
+  sP.turns = 3;
+  let evP = state.applyEffects(sP, { pets: [{ name: '墨玉狸', realm: '炼气二层妖', desc: '通体墨色、瞳如金灯' }] });
+  console.log('[灵宠] 登记:', sP.pets['墨玉狸'].realm === '炼气二层妖', '| 首见回合:', sP.pets['墨玉狸'].firstTurn === 4, '| 事件:', evP.some(e => /灵宠同游/.test(e.text)));
+  state.applyEffects(sP, { pets: [{ name: '墨玉狸', desc: '更新：学会夜行探路' }] });
+  console.log('[灵宠] 更新保留realm:', sP.pets['墨玉狸'].realm === '炼气二层妖', '| desc更新:', sP.pets['墨玉狸'].desc.includes('夜行'));
+  const snapP = gm.buildSnapshot(sP, null);
+  console.log('[灵宠] 快照含灵宠行:', snapP.includes('灵宠') && snapP.includes('墨玉狸'));
+  const oldP = { name: '老档', realm: { stage: '炼气', level: 1 }, attrs: {} };
+  const normP = state.normalizeState(oldP);
+  console.log('[灵宠] 旧档自动补空:', JSON.stringify(normP.pets) === '{}');
+
+  /* 综合判定战斗：GM 可只写 diff（无 atk/def），胜负由 GM 综合裁定 */
+  const sJ = state.newState('判');
+  sJ.turns = 5;
+  let evJ = state.applyEffects(sJ, { enemy: { name: '妖狼', realm: '炼气三层', hp: 18, maxHp: 18, diff: '颇感吃力' } });
+  console.log('[判定] 无atk/def入册:', sJ.enemy.atk === undefined && sJ.enemy.def === undefined, '| 快照含评估:', gm.buildSnapshot(sJ, null).includes('颇感吃力'));
+  state.applyEffects(sJ, { enemy: { lever: 12 } });
+  console.log('[判定] 杠杆累积:', sJ.enemy.lever === 12, '| 快照含杠杆:', gm.buildSnapshot(sJ, null).includes('+12'));
+  evJ = state.applyEffects(sJ, { enemy: { hp: 0 } });
+  console.log('[判定] 结束清除:', sJ.enemy === null, '| 留痕:', sJ.battleLog.length === 1, '| 留痕含杠杆:', sJ.battleLog[0].lever === 12);
+
+  console.log('\n引擎 v13 全部通过 ✓');
 })().catch(e => { console.error('测试失败:', e); process.exit(1); });
