@@ -683,6 +683,19 @@ body[data-skin="heitie"] { --scroll-thumb: #3a3a30; }
 .map-detail .md-seen-item .si-t { color: var(--ink-faint); font-size: 12px; margin-right: 6px; }
 .map-current { color: var(--jade); font-weight: 600; }
 
+/* 天下大势 · 世界快讯时间线 */
+.news-timeline { display: flex; flex-direction: column; gap: 4px; padding: 6px 2px; }
+.news-item { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px;
+  border-left: 3px solid var(--gold-dim); border-radius: 0 6px 6px 0;
+  background: rgba(201,168,106,.04); font-size: 14px; line-height: 1.8; }
+.news-item .ni-k { font-size: 11px; color: var(--gold); border: 1px solid rgba(201,168,106,.3); border-radius: 3px; padding: 0 7px; flex-shrink: 0; }
+.news-item .ni-k.ni-人物 { color: var(--cyan); border-color: rgba(127,196,200,.35); }
+.news-item .ni-k.ni-天象 { color: var(--violet); border-color: rgba(180,138,212,.35); }
+.news-item .ni-k.ni-势力 { color: var(--cinnabar); border-color: rgba(192,82,58,.4); }
+.news-item .ni-k.ni-传闻 { color: var(--jade); border-color: rgba(143,191,127,.35); }
+.news-item .ni-text { flex: 1; color: var(--ink-dim); }
+.news-item .ni-t { font-size: 11px; color: var(--ink-faint); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
 /* 万象阁 · 图鉴与人物志 */
 .modal.codex { width: min(780px, 94vw); }
 .codex-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
@@ -795,8 +808,16 @@ body[data-skin="heitie"] { --scroll-thumb: #3a3a30; }
   animation: rise .8s .45s ease both; }
 .menu-btn { min-width: 220px; padding: 12px 0; font-size: 16px; letter-spacing: .3em; border-radius: 6px; }
 .menu-btn-main { font-size: 18px; padding: 14px 0; box-shadow: 0 8px 30px rgba(192,82,58,.35); }
-.menu-ver { margin-top: 34px; font-size: 11.5px; color: rgba(148,137,122,.6); letter-spacing: .15em;
+.menu-ver { margin-top: 30px; font-size: 11.5px; color: rgba(148,137,122,.6); letter-spacing: .15em;
   animation: rise .8s .6s ease both; }
+.menu-news { margin-top: 22px; width: min(520px, 88vw); animation: rise .8s .7s ease both; }
+.menu-news .mn-title { font-size: 11.5px; color: var(--gold-dim); letter-spacing: .4em; margin-bottom: 8px; }
+.menu-news .mn-list { display: flex; flex-direction: column; gap: 5px; }
+.menu-news .mn-item { font-size: 12.5px; color: rgba(210,198,172,.75); letter-spacing: .04em;
+  border-left: 2px solid rgba(201,168,106,.35); padding-left: 10px; text-align: left;
+  text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+.menu-news .mn-item .mn-k { color: var(--cyan); margin-right: 6px; font-size: 11px; }
+.menu-news .mn-item .mn-t { color: rgba(148,137,122,.6); margin-left: 8px; font-size: 11px; }
 
 /* ===== 解锁动效：新物品/NPC/任务 中央渐显 ===== */
 #m-unlock { background: rgba(5,4,3,.72); backdrop-filter: blur(2px); }

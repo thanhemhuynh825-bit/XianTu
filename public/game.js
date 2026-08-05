@@ -94,6 +94,7 @@ async function bootstrap() {
     $('menu-ver').textContent = `v${boot.model ? '' : ''}${boot.model || ''} · 一路修行，仙途漫漫`;
     if (!boot.configured) { showModal('m-nokey'); return; }
     showMenu();
+    loadMenuNews(); // 启动页江湖快讯
     /* 首次进入：启动页之上率先展示指引；之后不再自动弹出（上栏保留指引按钮） */
     if (!localStorage.getItem(GUIDE_KEY)) setTimeout(() => openGuide(true), 900);
   } catch {
@@ -119,6 +120,22 @@ setInterval(() => {
 $('btn-menu-start').addEventListener('click', () => { showSlots(); }); // 选存档后进入（隐藏启动页在进入时）
 $('btn-menu-settings').addEventListener('click', () => { applySettings(); showModal('m-settings'); });
 $('btn-menu-guide').addEventListener('click', () => openGuide(false));
+
+/* 启动页江湖快讯：最近 3 档的世界动态 */
+async function loadMenuNews() {
+  const list = $('mn-list');
+  try {
+    const slot = Number(localStorage.getItem('xmx_slot')) || 1;
+    const exp = await fetch('/api/export?slot=' + slot).then(r => r.json());
+    if (exp.ok && exp.data && exp.data.news && exp.data.news.length) {
+      const items = [...exp.data.news].slice(-3).reverse();
+      list.innerHTML = items.map(n =>
+        `<div class="mn-item"><span class="mn-k">${esc(n.kind)}</span>${esc(n.text)}<span class="mn-t">第${n.t}回</span></div>`).join('');
+      return;
+    }
+  } catch { /* 无档或错误，用占位 */ }
+  list.innerHTML = '<div class="mn-item" style="border-left-color:transparent">踏入苍玄界，亲历天下事。</div>';
+}
 
 function setConn(state, text) {
   const el = $('conn');
@@ -920,6 +937,9 @@ function itemKind(st, name) {
   return '杂物';
 }
 
+/* 万象阁 tab 标题映射 */
+const CODEX_TITLES = { items: '万象阁 · 行囊图鉴', tech: '万象阁 · 功法图鉴', npcs: '万象阁 · 人物志', news: '万象阁 · 天下大势' };
+
 function renderCodex() {
   const st = app.st;
   const body = $('codex-body');
@@ -948,6 +968,15 @@ function renderCodex() {
       <div class="cc-sub">${esc(t.desc || '来历不明的功法。')}</div>
       <div class="cc-meta">已习得</div>
     </div>`).join('');
+  } else if (codex.tab === 'news') {
+    /* 天下大势：世界快讯时间线（倒序） */
+    const list = [...(st.news || [])].reverse();
+    cards = `<div class="news-timeline">${list.map(n => `
+      <div class="news-item">
+        <span class="ni-k ${'ni-' + n.kind}">${esc(n.kind)}</span>
+        <span class="ni-text">${esc(n.text)}</span>
+        <span class="ni-t">第${n.t}回</span>
+      </div>`).join('') || '<div class="codex-empty" style="padding:30px 0">江湖初定，尚无大事——一切静待发生。</div>'}</div>`;
   } else {
     cards = Object.entries(st.npcs || {}).map(([n, p]) => `<div class="codex-card" data-open="npcs" data-name="${esc(n)}">
       <div class="cc-name">${esc(n)}<span class="cc-tag">人物</span></div>
@@ -958,7 +987,7 @@ function renderCodex() {
 
   body.innerHTML = cards || '';
   empty.classList.toggle('hidden', !!cards);
-  $('codex-title').textContent = codex.tab === 'items' ? '万象阁 · 行囊图鉴' : codex.tab === 'tech' ? '万象阁 · 功法图鉴' : '万象阁 · 人物志';
+  $('codex-title').textContent = CODEX_TITLES[codex.tab] || '万象阁';
 
   body.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => {
     codex.view = 'detail';
@@ -1004,6 +1033,7 @@ function renderCodexDetail() {
       <div class="codex-detail">
         <div class="cd-name">${esc(p.name)}</div>
         <div class="cd-field"><span class="k">修为情报</span><span class="v cd-power">${esc(p.power || '深浅未知（以你目前的境界无法窥探）')}</span></div>
+        ${(p.powerHistory && p.powerHistory.length >= 2) ? `<div class="cd-field"><span class="k">修为轨迹</span><span class="v">${p.powerHistory.map(h => `<span class="seen-item"><span class="si-t">第${h.t}回</span>${esc(h.power)}</span>`).join('')}</span></div>` : ''}
         <div class="cd-field"><span class="k">身份来历</span><span class="v">${esc(p.desc || '所知甚少。')}</span></div>
         <div class="cd-field"><span class="k">登场记录</span><span class="v">初见于第 ${p.firstTurn} 回 · 登场 ${(p.turns || []).length} 次</span></div>
         ${rels.length ? `<div class="cd-field"><span class="k">未了因果</span><span class="v">${rels.map(r => esc(r.text)).join('<br>')}</span></div>` : ''}

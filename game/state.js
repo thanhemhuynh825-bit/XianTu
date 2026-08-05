@@ -156,6 +156,7 @@ function newState(name = '无名散修', traits = {}) {
     hooks: [],     // 未了之事：伏笔/恩怨/承诺 [{id, text, turn, open}]
     quotes: [],    // 台词存档：服务器自动提取的引号内容 [{t, text}]
     beats: [],     // 剧情链：每回合 GM 输出的一句话摘要（脉络速览，最近 40 条）
+    news: [],      // 天下大势：世界快讯 [{t, text, kind}]（江湖/人物/天象/势力，最近 30 条）
     conditions: [], // 状态：中毒/内伤/煞气等 [{name, desc, turns, hpPerTurn, mpPerTurn}]，服务器每回合自动结算
     enemy: null,    // 战斗状态机：{name, realm, hp, maxHp, mp, atk, def}（战斗中由 GM 更新，快照可见）
     visited: {},    // 到访记录（地图数据源）：{地点: {area, firstTurn, lastTurn, count}}
@@ -248,6 +249,7 @@ function normalizeState(s) {
   }
   s.memory = Array.isArray(s.memory) ? s.memory.slice(-25) : [];
   s.beats = Array.isArray(s.beats) ? s.beats.slice(-40) : [];
+  s.news = Array.isArray(s.news) ? s.news.slice(-30) : [];
   s.conditions = Array.isArray(s.conditions) ? s.conditions.filter(c => c && c.name && (c.turns || 0) > 0).slice(-10) : [];
   s.enemy = s.enemy && s.enemy.name ? s.enemy : null;
   s.visited = s.visited || {};
@@ -543,7 +545,19 @@ function applyEffects(s, fx) {
     };
   }
 
-  /* 人物登记：NPC 登场/情报更新（人物志数据源） */
+  /* 天下大势：世界快讯（江湖动态/人物近况/天象势力，直观呈现鲜活世界） */
+  if (fx.news != null) {
+    s.news = s.news || [];
+    for (const n of Array.isArray(fx.news) ? fx.news : [fx.news]) {
+      if (!n || !n.text) continue;
+      const kind = ['江湖', '人物', '天象', '势力', '传闻'].includes(n.kind) ? n.kind : '江湖';
+      s.news.push({ t: s.turns + 1, text: String(n.text).slice(0, 60), kind });
+      events.push({ t: 'system', text: `【天下·${kind}】${n.text}` });
+    }
+    if (s.news.length > 30) s.news = s.news.slice(-30);
+  }
+
+  /* 人物登记：NPC 登场/情报更新（人物志数据源，修为变化记录成长轨迹） */
   if (fx.npcs != null) {
     s.npcs = s.npcs || {};
     for (const p of Array.isArray(fx.npcs) ? fx.npcs : [fx.npcs]) {
@@ -556,6 +570,14 @@ function applyEffects(s, fx) {
         firstTurn: old ? old.firstTurn : s.turns + 1,
         turns: old ? [...(old.turns || []).slice(-49), s.turns + 1] : [s.turns + 1],
       };
+      /* 修为成长轨迹：power 变化时记录 */
+      if (old && p.power && old.power !== p.power) {
+        const ph = old.powerHistory || [];
+        if (ph.length === 0 && old.power) ph.push({ t: old.firstTurn, power: old.power });
+        entry.powerHistory = [...ph, { t: s.turns + 1, power: String(p.power).slice(0, 60) }].slice(-8);
+      } else if (old && old.powerHistory) {
+        entry.powerHistory = old.powerHistory;
+      }
       s.npcs[p.name] = entry;
       events.push({ t: 'quest', text: `识得人物：${p.name}${entry.power ? `（${entry.power}）` : ''}` });
     }
@@ -802,7 +824,7 @@ function extractItemSentence(narration, itemName) {
 
 /* ---------- 回合快照链：每回合存核心状态，支持任意回滚（最近 300 回合） ---------- */
 const TURN_SNAP_MAX = 300;
-const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'conditions', 'enemy', 'visited', 'mapPos'];
+const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'visited', 'mapPos'];
 function snapCore(st) {
   const core = {};
   for (const k of CORE_FIELDS) {
