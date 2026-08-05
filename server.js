@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const GAME_VERSION = '1.5.0';
+const GAME_VERSION = '1.6.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -188,6 +188,27 @@ function settleIdleNow(st, now = Date.now()) {
   return { events, note: r.note, warnings };
 }
 
+/* 叙事时间提取：GM 未写 effects.time 时，从叙事中的时间表达提取（优先于关键词推断） */
+function extractTimeFromNarration(text) {
+  if (!text) return null;
+  const t = String(text);
+  const zh = ['一', '两', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+  const zhNum = s => s === '一' ? 1 : s === '两' || s === '二' ? 2 : s === '三' ? 3 : s === '四' ? 4 : s === '五' ? 5 : s === '六' ? 6 : s === '七' ? 7 : s === '八' ? 8 : s === '九' ? 9 : 10;
+  let total = null;
+  const one = (re, factor) => {
+    const m = t.match(re);
+    if (m) { const n = /[一两二三四五六七八九十]/.test(m[1]) ? zhNum(m[1]) : m[1] === '半' ? 0.5 : parseInt(m[1]) || 1; total = n * factor; return true; }
+    return false;
+  };
+  if (one(/([一两二三四五六七八九十半\d]+)个?(时辰)/, 2)) return total;
+  if (one(/([一两二三四五六七八九十半\d]+)\s*(日|天|昼夜)/, 24)) return total;
+  if (one(/([一两二三四五六七八九十半\d]+)个月/, 720)) return total;
+  if (one(/([一两二三四五六七八九十半\d]+)年/, 8640)) return total;
+  if (/一夜|整夜|彻夜/.test(t)) return 8;
+  if (/片刻|须臾|稍顷/.test(t)) return 1;
+  return null;
+}
+
 /* ---------- 剧情监察：分级质检（只在关键节点触发，省 token） ---------- */
 function needsQC(st, fx) {
   if (st.turns % 8 === 0) return true; // 周期抽查
@@ -275,13 +296,16 @@ async function gmTurn(slot, st, command, opts = {}) {
     }
   }
 
-  /* 时辰自动推断：GM 未声明时间流逝时，按动作关键词兜底（有体感、有代价） */
+  /* 时辰自动推断：GM 未写时间时，先取叙事中的时间表达，再按动作关键词兜底 */
   if (st.timeH === timeBefore) {
-    const h = inferTimeFx(command + '\n' + narration);
+    let h = null;
+    const narrTime = extractTimeFromNarration(narration);
+    if (narrTime != null) h = narrTime;
+    else h = inferTimeFx(command + '\n' + narration);
     if (h > 0) {
       applyEffects(st, { time: h / 24 });
       events.push({ t: 'time', text: `时光流逝：${fmtHours(h)} · 现为${getShichen(st)}时` });
-      warnings.push(`未声明时间，按动作推断 ${fmtHours(h)}`);
+      warnings.push(`未声明时间，${narrTime != null ? '按叙事所言' : '按动作推断'} ${fmtHours(h)}`);
     }
   }
 

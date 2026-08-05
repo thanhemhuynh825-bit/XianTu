@@ -236,7 +236,21 @@ function renderState(st) {
   $('c-stats').innerHTML = [
     ['attack', '攻', a.attack], ['defense', '防', a.defense], ['agility', '身', a.agility], ['insight', '悟', a.insight],
     ['luck', '福', a.luck], ['spirit_stones', '灵石', st.spirit_stones], ['gold', '银', st.gold], ['lifespan', '寿', Math.round(a.lifespan)],
-  ].map(([k, lab, v]) => `<div class="stat" data-tip="${esc(STAT_TIPS[k])}"><div class="k">${lab}</div><div class="v">${v}</div></div>`).join('');
+  ].map(([k, lab, v]) => `<div class="stat" data-key="${k}" data-tip="${esc(STAT_TIPS[k])}"><div class="k">${lab}</div><div class="v">${v}</div></div>`).join('');
+
+  /* 属性成长闪光：与上次对比，变化的属性短暂高亮 */
+  if (app.lastAttrs) {
+    for (const key of ['attack', 'defense', 'agility', 'insight', 'luck']) {
+      const d = a[key] - (app.lastAttrs[key] || 0);
+      if (d === 0) continue;
+      const el = document.querySelector(`#c-stats .stat[data-key="${key}"]`);
+      if (el) {
+        el.classList.add(d > 0 ? 'flash-up' : 'flash-down');
+        setTimeout(() => el.classList.remove('flash-up', 'flash-down'), 1300);
+      }
+    }
+  }
+  app.lastAttrs = { attack: a.attack, defense: a.defense, agility: a.agility, insight: a.insight, luck: a.luck };
 
   setBarTip('hp', BAR_TIPS.hp);
   setBarTip('mp', BAR_TIPS.mp);
@@ -286,10 +300,26 @@ function renderState(st) {
     ? st.conditions.map(c => `<div class="quest-row" data-tip="${esc(`${c.desc || '持续中'} · 服务器每回合自动结算`)}"><span class="q-t" style="color:#e08a72">✚ ${esc(c.name)}</span><span class="q-d">剩${c.turns}回合${c.hpPerTurn ? `·每回气血${c.hpPerTurn}` : ''}${c.mpPerTurn ? `·每回灵力${c.mpPerTurn}` : ''}</span></div>`).join('')
     : '<div class="empty">身无挂碍</div>';
 
-  /* 战况（战斗状态机） */
-  $('c-enemy').innerHTML = st.enemy
-    ? `<div class="quest-row" data-tip="${esc(`${st.enemy.name}：${st.enemy.realm}${st.enemy.desc ? '｜' + st.enemy.desc : ''}`)}"><span class="q-t" style="color:var(--cinnabar)">⚔ ${esc(st.enemy.name)}</span><span class="q-d">${esc(st.enemy.realm)} · 气血 ${st.enemy.hp}/${st.enemy.maxHp}${st.enemy.atk ? ` · 攻${st.enemy.atk}` : ''}</span></div>`
-    : '<div class="empty">四下安宁</div>';
+  /* 战况（战斗状态机 + 攻防对比条） */
+  if (st.enemy) {
+    const e = st.enemy;
+    const a = st.attrs;
+    const pct = (mine, foe) => {
+      const tot = mine + foe || 1;
+      return Math.round(mine / tot * 100);
+    };
+    $('c-enemy').innerHTML = `<div class="quest-row" data-tip="${esc(`${e.name}：${e.realm}${e.desc ? '｜' + e.desc : ''}`)}">
+        <span class="q-t" style="color:var(--cinnabar)">⚔ ${esc(e.name)}</span>
+        <span class="q-d">${esc(e.realm)} · 气血 ${e.hp}/${e.maxHp}</span>
+      </div>
+      <div class="battle-compare">
+        <div class="bc-row"><span class="bc-label">攻击</span><div class="bc-bar"><span class="mine" style="width:${pct(a.attack, e.atk)}%"></span><span class="foe" style="width:${100 - pct(a.attack, e.atk)}%"></span></div><span class="bc-num">你 ${a.attack} · 敌 ${e.atk || '?'}</span></div>
+        <div class="bc-row"><span class="bc-label">防御</span><div class="bc-bar"><span class="mine" style="width:${pct(a.defense, e.def)}%"></span><span class="foe" style="width:${100 - pct(a.defense, e.def)}%"></span></div><span class="bc-num">你 ${a.defense} · 敌 ${e.def || '?'}</span></div>
+        <div class="bc-row"><span class="bc-label">身法</span><div class="bc-bar"><span class="mine" style="width:${pct(a.agility, Math.max(1, Math.round((e.atk || 4) / 2)))}%"></span><span class="foe" style="width:${100 - pct(a.agility, Math.max(1, Math.round((e.atk || 4) / 2)))}%"></span></div><span class="bc-num">你 ${a.agility}</span></div>
+      </div>`;
+  } else {
+    $('c-enemy').innerHTML = '<div class="empty">四下安宁</div>';
+  }
 
   /* 闭关状态条 */
   renderIdleBar(st);
@@ -1144,6 +1174,50 @@ $('m-unlock').addEventListener('click', () => {
     playUnlocks();
   }
 });
+
+/* ---------- 四卡可调整：拖拽分隔条 + 传讯卡折叠 ---------- */
+const layout = document.querySelector('.layout');
+const splitter = $('splitter');
+(function restoreSplit() {
+  try {
+    const w = Number(localStorage.getItem('xmx_split'));
+    if (w && w > 320) layout.style.gridTemplateColumns = `${w}px 8px 360px`;
+  } catch { /* ignore */ }
+})();
+let splitDrag = null;
+splitter.addEventListener('pointerdown', e => {
+  splitDrag = { x: e.clientX, w: layout.getBoundingClientRect().width };
+  splitter.classList.add('dragging');
+  splitter.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+splitter.addEventListener('pointermove', e => {
+  if (!splitDrag) return;
+  const total = splitDrag.w;
+  let main = total - e.clientX + splitDrag.x - 8 - 360;
+  main = Math.max(340, Math.min(total - 380, main));
+  layout.style.gridTemplateColumns = `${main}px 8px 360px`;
+});
+splitter.addEventListener('pointerup', () => {
+  if (!splitDrag) return;
+  const cols = layout.style.gridTemplateColumns;
+  const w = parseFloat(cols) || 0;
+  if (w > 300) localStorage.setItem('xmx_split', String(Math.round(w)));
+  splitDrag = null;
+  splitter.classList.remove('dragging');
+});
+$('btn-chat-fold').addEventListener('click', () => {
+  const card = document.querySelector('.chat-card');
+  card.classList.toggle('collapsed');
+  $('btn-chat-fold').textContent = card.classList.contains('collapsed') ? '展开' : '收起';
+  localStorage.setItem('xmx_chat_fold', card.classList.contains('collapsed') ? '1' : '0');
+});
+(function restoreChatFold() {
+  if (localStorage.getItem('xmx_chat_fold') === '1') {
+    document.querySelector('.chat-card').classList.add('collapsed');
+    $('btn-chat-fold').textContent = '展开';
+  }
+})();
 
 /* ---------- 音频系统：场景化 BGM ---------- */
 function loadAudioSettings() {
