@@ -1,8 +1,4 @@
 ﻿/* ============================================================
- * 《仙途·苍玄界》— 水墨风样式
- * 深墨底 · 鎏金 · 朱砂 · 玉色，克制而精致。
- * ============================================================ */
-
 :root {
   --bg: #0d0b09;
   --bg2: #13100c;
@@ -211,10 +207,45 @@ body {
   padding: 0 42px 40px;
   scroll-behavior: smooth;
 }
-.narrative::-webkit-scrollbar, .side::-webkit-scrollbar, .modal::-webkit-scrollbar, .map-body::-webkit-scrollbar, .side-body::-webkit-scrollbar { width: 8px; height: 8px; }
-.narrative::-webkit-scrollbar-thumb, .side::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .map-body::-webkit-scrollbar-thumb, .side-body::-webkit-scrollbar-thumb { background: #2c2417; border-radius: 4px; }
-.narrative::-webkit-scrollbar-thumb:hover, .side::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
-.narrative::-webkit-scrollbar-corner, .side::-webkit-scrollbar-corner { background: transparent; }
+/* ===== 统一滚动条（所有滚动容器） ===== */
+:root { --scroll-thumb: #3a3120; }
+body[data-skin="baiyue"] { --scroll-thumb: #c9b98e; }
+body[data-skin="xuanqing"] { --scroll-thumb: #2c4a40; }
+body[data-skin="zhuxiao"] { --scroll-thumb: #4a2a26; }
+body[data-skin="heitie"] { --scroll-thumb: #3a3a30; }
+.narrative-inner::-webkit-scrollbar,
+.side::-webkit-scrollbar,
+.modal::-webkit-scrollbar,
+.map-body::-webkit-scrollbar,
+.side-body::-webkit-scrollbar,
+.life-list::-webkit-scrollbar,
+.snap-list::-webkit-scrollbar,
+.codex-body::-webkit-scrollbar,
+.qa-body::-webkit-scrollbar,
+.help-grid::-webkit-scrollbar { width: 8px; height: 8px; }
+.narrative-inner::-webkit-scrollbar-thumb,
+.side::-webkit-scrollbar-thumb,
+.modal::-webkit-scrollbar-thumb,
+.map-body::-webkit-scrollbar-thumb,
+.side-body::-webkit-scrollbar-thumb,
+.life-list::-webkit-scrollbar-thumb,
+.snap-list::-webkit-scrollbar-thumb,
+.codex-body::-webkit-scrollbar-thumb,
+.qa-body::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.narrative-inner::-webkit-scrollbar-thumb:hover,
+.side::-webkit-scrollbar-thumb:hover,
+.modal::-webkit-scrollbar-thumb:hover,
+.life-list::-webkit-scrollbar-thumb:hover,
+.snap-list::-webkit-scrollbar-thumb:hover,
+.qa-body::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); border: 2px solid transparent; background-clip: padding-box; }
+.narrative-inner::-webkit-scrollbar-corner,
+.side::-webkit-scrollbar-corner,
+.modal::-webkit-scrollbar-corner { background: transparent; }
+/* Firefox */
+.narrative-inner, .side, .modal, .map-body, .side-body, .life-list, .snap-list, .codex-body, .qa-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
 
 .orn-head { text-align: center; color: var(--gold-dim); letter-spacing: 1em; margin-bottom: 18px; font-size: 13px; }
 .opening { text-align: center; padding: 6vh 0 4vh; position: relative; overflow: hidden; border-radius: 6px; }
@@ -401,17 +432,26 @@ body {
   letter-spacing: .05em;
 }
 .chip:hover { color: var(--gold-b); border-color: var(--gold); transform: translateY(-1px); }
+.chip:focus-visible { outline: 2px solid var(--gold-dim); outline-offset: 2px; }
 .chip.cmd { border-style: dashed; color: var(--ink-faint); }
 .chip.cmd:hover { color: var(--cyan); border-color: var(--cyan); }
 
 .input-row { display: flex; align-items: center; gap: 10px; }
 .prompt { color: var(--cinnabar); font-size: 22px; font-weight: 700; }
-#cmd {
-  flex: 1; background: rgba(0,0,0,.5); border: 1px solid var(--line); border-radius: 6px;
-  color: var(--ink); font-family: var(--serif); font-size: 17px;
-  padding: 11px 16px; outline: none; transition: border-color .2s, box-shadow .2s;
+/* 输入框统一样式与聚焦光晕 */
+#cmd, .new-row input, .set-input, .qa-input-row input {
+  background: rgba(0,0,0,.5); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink); font-family: var(--serif);
+  outline: none; transition: border-color .2s, box-shadow .2s;
 }
-#cmd:focus { border-color: var(--gold-dim); box-shadow: 0 0 0 3px rgba(201,168,106,.12), inset 0 0 10px rgba(201,168,106,.04); }
+#cmd:focus, .new-row input:focus, .set-input:focus, .qa-input-row input:focus {
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 0 3px rgba(201,168,106,.12), inset 0 0 10px rgba(201,168,106,.04);
+}
+#cmd { flex: 1; font-size: 17px; padding: 11px 16px; }
+.new-row input { font-family: var(--kai); font-size: 18px; padding: 9px 14px; }
+.set-input { font-size: 14px; padding: 7px 12px; }
+.qa-input-row input { font-size: 14.5px; padding: 8px 12px; }
 #cmd::placeholder { color: var(--ink-faint); }
 .hint { margin-top: 9px; font-size: 12.5px; color: var(--ink-faint); letter-spacing: .08em; }
 
@@ -498,11 +538,6 @@ body {
 .slot.new:hover { color: var(--gold-b); }
 
 .new-row { display: flex; gap: 10px; }
-.new-row input {
-  flex: 1; background: rgba(0,0,0,.5); border: 1px solid var(--line); border-radius: 4px;
-  color: var(--ink); font-family: var(--kai); font-size: 18px; padding: 9px 14px; outline: none;
-}
-.new-row input:focus { border-color: var(--gold-dim); }
 
 .death { text-align: center; border-color: var(--cinnabar); }
 .death-seal {
@@ -733,7 +768,7 @@ body {
 
 /* ===== 启动页（主菜单） ===== */
 .menu-screen {
-  position: fixed; inset: 0; z-index: 40;
+  position: fixed; inset: 0; z-index: 45; /* 高于游戏内悬浮元素（天机球 40），低于弹窗（50） */
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   background: var(--bg);
@@ -802,9 +837,6 @@ body {
 .set-control { flex: 1; display: flex; align-items: center; gap: 12px; }
 .set-val { font-size: 13.5px; color: var(--ink-dim); min-width: 44px; font-variant-numeric: tabular-nums; }
 .set-note { font-size: 13px; color: var(--ink-faint); line-height: 1.7; }
-.set-input { background: rgba(0,0,0,.5); border: 1px solid var(--line); border-radius: 4px;
-  color: var(--ink); font-family: var(--serif); font-size: 14px; padding: 7px 12px; outline: none; }
-.set-input:focus { border-color: var(--gold-dim); }
 input[type="range"] { -webkit-appearance: none; width: 220px; height: 6px; border-radius: 3px;
   background: linear-gradient(90deg, var(--gold-dim), var(--gold)); outline: none; }
 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
@@ -869,10 +901,5 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18p
 .qa-me { align-self: flex-end; background: rgba(192,82,58,.12); border: 1px solid rgba(192,82,58,.25); color: var(--gold-b); border-bottom-right-radius: 2px; }
 .qa-err { align-self: flex-start; color: var(--cinnabar); font-size: 13px; }
 .qa-input-row { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
-.qa-input-row input {
-  flex: 1; background: rgba(0,0,0,.5); border: 1px solid var(--line); border-radius: 6px;
-  color: var(--ink); font-family: var(--serif); font-size: var(--panel-size, 14.5px); padding: 8px 12px; outline: none;
-}
-.qa-input-row input:focus { border-color: var(--gold-dim); }
 .qa-hint { padding: 0 14px 10px; font-size: 11.5px; color: var(--ink-faint); letter-spacing: .05em; }
 .qa-thinking { color: var(--gold-dim); font-size: 13px; font-style: italic; }
