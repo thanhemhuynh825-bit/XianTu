@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const GAME_VERSION = '1.7.0';
+const GAME_VERSION = '1.8.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -188,25 +188,29 @@ function settleIdleNow(st, now = Date.now()) {
   return { events, note: r.note, warnings };
 }
 
-/* 叙事时间提取：GM 未写 effects.time 时，从叙事中的时间表达提取（优先于关键词推断） */
+/* 叙事时间提取：GM 未写 effects.time 时，从叙事中的时间表达提取（优先于关键词推断）
+ * 注意排除背景叙述（"已在山中独居两月"是身世描述，不是本回合流逝），并设上限防误报 */
 function extractTimeFromNarration(text) {
   if (!text) return null;
   const t = String(text);
   const zh = ['一', '两', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
   const zhNum = s => s === '一' ? 1 : s === '两' || s === '二' ? 2 : s === '三' ? 3 : s === '四' ? 4 : s === '五' ? 5 : s === '六' ? 6 : s === '七' ? 7 : s === '八' ? 8 : s === '九' ? 9 : 10;
+  const MAX_H = 720; // 提取上限 30 天：超出视为背景叙述/夸张修辞，忽略
+  /* 完成态/背景标记：已/曾/过去/从前/自幼/历时…后的时间词是身世与回顾，非本回合流逝 */
+  if (/(已(经|过)?|曾(经)?|过去|从前|早已|自幼|历时|至今|当初|那时)[^。！？；\n]{0,12}([一二两三四五六七八九十半\d]+)\s*个?(时辰|日|天|月|年)/.test(t)) return null;
   let total = null;
   const one = (re, factor) => {
     const m = t.match(re);
     if (m) { const n = /[一两二三四五六七八九十]/.test(m[1]) ? zhNum(m[1]) : m[1] === '半' ? 0.5 : parseInt(m[1]) || 1; total = n * factor; return true; }
     return false;
   };
-  if (one(/([一两二三四五六七八九十半\d]+)个?(时辰)/, 2)) return total;
-  if (one(/([一两二三四五六七八九十半\d]+)\s*(日|天|昼夜)/, 24)) return total;
-  if (one(/([一两二三四五六七八九十半\d]+)个月/, 720)) return total;
-  if (one(/([一两二三四五六七八九十半\d]+)年/, 8640)) return total;
+  if (one(/([一两二三四五六七八九十半\d]+)\s*个?(时辰)/, 2)) return total;
+  if (one(/([一两二三四五六七八九十半\d]+)\s*个?(日|天|昼夜)/, 24)) return total;
+  if (one(/([一两二三四五六七八九十半\d]+)\s*个?月/, 720)) return total;
+  if (one(/([一两二三四五六七八九十半\d]+)\s*个?年/, 8640)) return null; // 单回合流逝一年以上视为背景，忽略
   if (/一夜|整夜|彻夜/.test(t)) return 8;
   if (/片刻|须臾|稍顷/.test(t)) return 1;
-  return null;
+  return total != null && total <= MAX_H ? total : null;
 }
 
 /* ---------- 剧情监察：分级质检（只在关键节点触发，省 token） ---------- */
@@ -296,8 +300,8 @@ async function gmTurn(slot, st, command, opts = {}) {
     }
   }
 
-  /* 时辰自动推断：GM 未写时间时，先取叙事中的时间表达，再按动作关键词兜底 */
-  if (st.timeH === timeBefore) {
+  /* 时辰自动推断：GM 未写时间时，先取叙事中的时间表达，再按动作关键词兜底（开篇/事件回合不流逝） */
+  if (st.timeH === timeBefore && !opts.skipHistory) {
     let h = null;
     const narrTime = extractTimeFromNarration(narration);
     if (narrTime != null) h = narrTime;
