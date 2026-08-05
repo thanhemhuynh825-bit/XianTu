@@ -25,6 +25,7 @@ function walk(dir, base) {
 }
 const files = {};
 for (const rel of walk(path.join(__dirname, 'public'), path.join(__dirname, 'public'))) {
+  if (rel.startsWith('audio/')) continue; // 音乐随 exe 分发，不进热更包
   files['public/' + rel] = fs.readFileSync(path.join(__dirname, 'public', rel)).toString('base64');
 }
 for (const rel of walk(path.join(__dirname, 'game'), path.join(__dirname, 'game'))) {

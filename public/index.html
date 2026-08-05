@@ -410,6 +410,7 @@
     <div class="settings-nav">
       <span class="set-tab active" data-sec="view">画面</span>
       <span class="set-tab" data-sec="text">文字</span>
+      <span class="set-tab" data-sec="sound">声音</span>
       <span class="set-tab" data-sec="other">其他</span>
     </div>
     <div class="settings-body">
@@ -450,6 +451,20 @@
               <option value="hei">黑体（无衬线）</option>
             </select>
           </div>
+        </div>
+      </div>
+      <!-- 声音 -->
+      <div class="set-sec hidden" id="sec-sound">
+        <div class="set-row"><div class="set-label">背景音乐</div>
+          <div class="set-control"><label class="set-switch"><input type="checkbox" id="set-music" checked><span class="sw-track"></span></label></div>
+        </div>
+        <div class="set-row"><div class="set-label">音乐音量</div>
+          <div class="set-control"><input type="range" id="set-vol" min="0" max="100" step="5" value="50"><span class="set-val" id="set-vol-val">50%</span></div>
+        </div>
+        <div class="set-row"><div class="set-label">自带音乐</div>
+          <div class="set-control"><span class="set-note">将音乐文件放入游戏目录 audio/ 文件夹，按场景命名即可自动替换：<br>
+            <b>menu.mp3</b> 主菜单 · <b>town.mp3</b> 城镇 · <b>wild.mp3</b> 野外 · <b>dark.mp3</b> 阴森险地 · <b>battle.mp3</b> 战斗 · <b>meditate.mp3</b> 闭关静修（mp3 格式，时长不限，会自动循环）<br>
+            未放置时使用内置氛围乐，同样随场景切换。</span></div>
         </div>
       </div>
       <!-- 其他 -->
@@ -507,6 +522,7 @@
   </div>
 </div>
 
+<script src="audio-sys.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

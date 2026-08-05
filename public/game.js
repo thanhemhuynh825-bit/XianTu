@@ -424,6 +424,7 @@ async function send(cmd) {
     renderState(res.state);
     renderChips();
     localStorage.setItem('xmx_slot', String(app.slot));
+    audioScene(res.state); // 场景化 BGM 切换
     hideMenu(); // 新建成功，进入游戏
     if (res.cutscene) showCutscene(res.cutscene);
     pushUnlocks(res.unlocks);
@@ -557,7 +558,8 @@ async function fetchState(slot, force = false) {
       if (isNewView) clearNarrative();
       replayLog(res.data); // 刷新/切档/回滚后重放历史剧情
       app.viewSlot = slot;
-      renderState(res.data); renderChips(); document.getElementById('narrative-inner').querySelector('.opening')?.remove();
+      renderState(res.data); renderChips(); $('narrative').querySelector('.opening')?.remove();
+      audioScene(res.data);
     }
   } finally { app.busy = false; }
 }
@@ -1143,7 +1145,46 @@ $('m-unlock').addEventListener('click', () => {
   }
 });
 
-/* ---------- 游戏设置：皮肤/缩放/字号/动画/字体 ---------- */
+/* ---------- 音频系统：场景化 BGM ---------- */
+function loadAudioSettings() {
+  try {
+    const a = JSON.parse(localStorage.getItem('xmx_audio') || '{}');
+    if (a.music !== undefined) settings.music = a.music;
+    if (a.volume !== undefined) settings.volume = a.volume;
+  } catch { /* ignore */ }
+  const m = $('set-music'); if (m) m.checked = settings.music;
+  const v = $('set-vol'); if (v) { v.value = Math.round(settings.volume * 100); $('set-vol-val').textContent = Math.round(settings.volume * 100) + '%'; }
+}
+function audioInit() {
+  loadAudioSettings();
+  AudioSys.load(settings);
+  /* 首次用户交互后启动音频（浏览器自动播放限制） */
+  const kick = () => {
+    document.removeEventListener('click', kick);
+    document.removeEventListener('keydown', kick);
+    AudioSys.init();
+    AudioSys.update(app.st);
+  };
+  document.addEventListener('click', kick);
+  document.addEventListener('keydown', kick);
+}
+function audioScene(st) {
+  if (window.AudioSys) AudioSys.update(st || app.st);
+}
+$('set-music').addEventListener('change', e => {
+  settings.music = e.target.checked;
+  AudioSys.setMusic(settings.music);
+  saveSettingsExtra();
+});
+$('set-vol').addEventListener('input', e => {
+  settings.volume = Number(e.target.value) / 100;
+  $('set-vol-val').textContent = e.target.value + '%';
+  AudioSys.setVolume(settings.volume);
+  saveSettingsExtra();
+});
+function saveSettingsExtra() {
+  try { localStorage.setItem('xmx_audio', JSON.stringify({ music: settings.music, volume: settings.volume })); } catch { /* ignore */ }
+}
 const SET_KEY = 'xmx_settings';
 const DEF_SET = { skin: 'default', zoom: 100, narr: 17, panel: 14.5, anim: true, font: 'default' };
 let settings = (() => { try { return { ...DEF_SET, ...JSON.parse(localStorage.getItem(SET_KEY) || '{}') }; } catch { return { ...DEF_SET }; } })();
@@ -1436,3 +1477,4 @@ document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click
 window.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-mask:not(.hidden)').forEach(m => hideModal(m.id)); });
 
 bootstrap();
+audioInit(); // 音频系统：首次交互后启动，随场景切换 BGM
