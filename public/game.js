@@ -1269,6 +1269,19 @@ $('set-vol').addEventListener('input', e => {
 function saveSettingsExtra() {
   try { localStorage.setItem('xmx_audio', JSON.stringify({ music: settings.music, volume: settings.volume })); } catch { /* ignore */ }
 }
+/* 当前音乐来源（设置页确认 BGM 搭载状态） */
+function refreshMusicSrc() {
+  const el = $('set-music-src');
+  if (!el) return;
+  if (window.AudioSys) {
+    const st = AudioSys.getStatus();
+    el.textContent = st;
+    el.style.color = st.includes('游戏BGM') ? 'var(--jade)' : 'var(--gold-dim)';
+  } else {
+    el.textContent = '';
+  }
+}
+setInterval(() => { if (!document.getElementById('m-settings').classList.contains('hidden')) refreshMusicSrc(); }, 1500);
 const SET_KEY = 'xmx_settings';
 const DEF_SET = { skin: 'default', zoom: 100, narr: 17, panel: 14.5, anim: true, font: 'default' };
 let settings = (() => { try { return { ...DEF_SET, ...JSON.parse(localStorage.getItem(SET_KEY) || '{}') }; } catch { return { ...DEF_SET }; } })();
@@ -1293,6 +1306,7 @@ function applySettings() {
 
 $('btn-settings').addEventListener('click', () => {
   applySettings();
+  refreshMusicSrc();
   fetch('/api/info').then(r => r.json()).then(info => {
     if (info.ok) {
       $('set-datadir').textContent = `存档目录：${info.dataDir}\n配置目录：${info.configDir}`;
