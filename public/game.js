@@ -392,6 +392,7 @@ async function send(cmd) {
     renderChips();
     localStorage.setItem('xmx_slot', String(app.slot));
     if (res.cutscene) showCutscene(res.cutscene);
+    pushUnlocks(res.unlocks);
   } catch (e) {
     removeThinking();
     appendTurn({ narration: '⚠ 与天道断联（网络错误），请重试。' });
@@ -542,17 +543,14 @@ document.getElementById('narrative').addEventListener('click', e => {
   if (btn) doRollback(Number(btn.dataset.turn));
 });
 
-/* 清空叙事区（切档/开新档时）：保留回合徽标与闭关状态条，只清剧情内容 */
+/* 清空叙事区（切档/开新档时）：只清剧情内容（顶栏徽标在 nav-head 固定区，不受影响） */
 function clearNarrative() {
-  const nav = document.getElementById('narrative-inner');
-  const badge = nav.querySelector('#turn-badge');
-  const idle = nav.querySelector('#idle-bar');
-  nav.innerHTML = '<div class="orn-head">— ✦ —</div>';
-  if (badge) nav.prepend(badge);
-  if (idle) nav.prepend(idle);
+  const inner = document.getElementById('narrative-inner');
+  if (!inner) return;
+  inner.innerHTML = '<div class="orn-head">— ✦ —</div>';
 }
 
-/* 确保回合徽标存在（防御：误删后自动重建） */
+/* 确保回合徽标存在（防御：误删后自动重建到顶栏固定区） */
 function ensureTurnBadge() {
   let b = $('turn-badge');
   if (!b) {
@@ -560,7 +558,8 @@ function ensureTurnBadge() {
     b.className = 'turn-badge';
     b.id = 'turn-badge';
     b.textContent = '—';
-    document.getElementById('narrative-inner').prepend(b);
+    const head = document.querySelector('.nav-head');
+    (head || $('narrative')).prepend(b);
   }
   return b;
 }
@@ -1055,6 +1054,44 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' || e.key === ' ') {
     const m = $('m-cutscene');
     if (!m.classList.contains('hidden')) hideModal('m-cutscene');
+  }
+});
+
+/* ---------- 解锁动效：新物品/NPC/任务 中央渐显，四周暗化 ---------- */
+const UNLOCK_ICONS = { item: '✦', npc: '人', quest: '卷' };
+let unlockQueue = [];
+let unlockBusy = false;
+let unlockSkip = false;
+function pushUnlocks(list) {
+  if (!list || !list.length) return;
+  unlockQueue.push(...list);
+  playUnlocks();
+}
+function playUnlocks() {
+  if (unlockBusy || !unlockQueue.length) return;
+  const u = unlockQueue.shift();
+  unlockBusy = true;
+  unlockSkip = false;
+  const card = $('unlock-card');
+  card.className = 'unlock-card ul-type-' + (u.type || 'item');
+  $('ul-icon').textContent = UNLOCK_ICONS[u.type] || '✦';
+  $('ul-label').textContent = u.type === 'item' ? '获得新物' : u.type === 'npc' ? '识得人物' : '新任务';
+  $('ul-title').textContent = u.title || '';
+  $('ul-desc').textContent = u.desc || '';
+  showModal('m-unlock');
+  setTimeout(() => {
+    if (unlockSkip) { unlockSkip = false; }
+    hideModal('m-unlock');
+    unlockBusy = false;
+    playUnlocks();
+  }, 3200);
+}
+$('m-unlock').addEventListener('click', () => {
+  if (unlockBusy) {
+    unlockSkip = true;
+    hideModal('m-unlock');
+    unlockBusy = false;
+    playUnlocks();
   }
 });
 

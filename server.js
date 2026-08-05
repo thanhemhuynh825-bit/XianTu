@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const GAME_VERSION = '1.2.1';
+const GAME_VERSION = '1.3.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -29,10 +29,10 @@ const state = loadGame('state');
 const gm = loadGame('gm');
 const character = loadGame('character');
 const llm = loadGame('llm');
-const { SYSTEM_PROMPT, buildMessages, OPENING_PROMPT, revivePrompt, reincarnatePrompt, GM_RULES_VERSION } = gm;
+const { SYSTEM_PROMPT, buildMessages, buildOpeningPrompt, revivePrompt, reincarnatePrompt, GM_RULES_VERSION } = gm;
 const { QA_SYSTEM, QC_SYSTEM, buildQCFacts } = gm;
 const { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, fateRolls, applyFuses, settleIdle, formatDate, IDLE_MAX_MIN, extractMoveLocations, inferTimeFx, fmtHours, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo } = state;
-const { rollTraits, ORIGINS, PERSONALITIES, TALENTS } = character;
+const { rollTraits, ORIGINS, PERSONALITIES, TALENTS, ORIGIN_STARTS } = character;
 const { loadConfig: loadCfg, chat, GMError } = llm;
 
 const cfg = loadCfg();
@@ -129,6 +129,40 @@ function friendErr(e) {
 }
 function log(...args) { console.log(`[${new Date().toLocaleTimeString()}]`, ...args); }
 
+/* 解锁检测：本回合新获得的物品 / 新识 NPC / 新任务（供前端渐显动效） */
+function detectUnlocks(st, invBefore, npcBefore, questBefore, fused) {
+  const out = [];
+  if (fused.inventory_add) {
+    const names = Array.isArray(fused.inventory_add) ? fused.inventory_add
+      : typeof fused.inventory_add === 'object' ? Object.keys(fused.inventory_add)
+        : [fused.inventory_add];
+    for (const n of names) {
+      const key = String(n).replace(/[×xX]\d+$/, '');
+      if (!key) continue;
+      const isNew = !(st.items && st.items[key]) && !(st.itemSeen && st.itemSeen[key]);
+      if (isNew) {
+        out.push({
+          type: 'item', title: key,
+          desc: (st.items && st.items[key]) || (st.itemSeen && st.itemSeen[key] && st.itemSeen[key][0] && st.itemSeen[key][0].text) || '此物入你囊中，来历待考。',
+        });
+      }
+    }
+  }
+  for (const [n, v] of Object.entries(st.npcs || {})) {
+    if (!npcBefore[n]) {
+      out.push({ type: 'npc', title: n, desc: v.power ? `${v.power}${v.desc ? '·' + v.desc : ''}` : (v.desc || '一位新面孔。') });
+    }
+  }
+  if (fused.quests) {
+    for (const q of Array.isArray(fused.quests) ? fused.quests : [fused.quests]) {
+      if (q && q.title && !questBefore.has(q.title) && q.status !== 'done') {
+        out.push({ type: 'quest', title: q.title, desc: q.desc || '', kind: q.kind || '委托' });
+      }
+    }
+  }
+  return out.slice(0, 4);
+}
+
 /* 台词自动提取（定义在 state.js，纯函数） */
 
 /* ---------- 天命骰（定义在 state.js，服务器持有种子与回合数） ---------- */
@@ -206,6 +240,8 @@ async function gmTurn(slot, st, command, opts = {}) {
   const timeBefore = st.timeH;
   const locBefore = st.location.name;
   const invBefore = { ...st.inventory }; // 行囊对账基准
+  const npcBefore = { ...(st.npcs || {}) }; // 解锁检测基准
+  const questBefore = new Set((st.quests || []).map(q => q.title)); // 解锁检测基准
   const fused = applyFuses(st, JSON.parse(JSON.stringify(effects)), warnings);
   const events = applyEffects(st, fused);
 
@@ -386,6 +422,7 @@ async function gmTurn(slot, st, command, opts = {}) {
     events,
     state: safeView(st),
     cutscene: fused.cutscene || null, // 重大节点过场（一次性展示，不落档）
+    unlocks: detectUnlocks(st, invBefore, npcBefore, questBefore, fused),
   };
 }
 
@@ -454,12 +491,28 @@ const server = http.createServer(async (req, res) => {
         const traits = body.traits && typeof body.traits === 'object' ? body.traits : {};
         const st = newState(name, {
           gender: body.gender,
+          roots: traits.roots && traits.roots.quality && Array.isArray(traits.roots.list) && traits.roots.list.length ? traits.roots : null,
           origin: traits.origin && ORIGINS.some(o => o.name === traits.origin.name) ? traits.origin : null,
           personality: traits.personality && PERSONALITIES.some(p => p.name === traits.personality.name) ? traits.personality : null,
           talent: traits.talent && TALENTS.some(t => t.name === traits.talent.name) ? traits.talent : null,
         });
+        /* 出身决定出生地：开局位置与初始剧情随之变化 */
+        const start = st.origin && ORIGIN_STARTS[st.origin.name];
+        if (start) {
+          st.location = { name: start.place, area: start.area };
+          st.visited = { [start.place]: { area: start.area, firstTurn: 1, lastTurn: 1, count: 1 } };
+          if (!st.explored.includes(start.area)) st.explored.push(start.area);
+          if (st.mapPos[start.area] === undefined) st.mapPos[start.area] = [450 + Math.floor(Math.random() * 60) - 30, 260 + Math.floor(Math.random() * 40) - 20];
+        }
         st.givenName = !!given;
-        return send(200, await gmTurn(slot, st, OPENING_PROMPT, { skipHistory: true, json: true }));
+        const opening = await gmTurn(slot, st, buildOpeningPrompt(st), { skipHistory: true, json: true });
+        /* 开篇位置锁定：出生地以出身映射为准，GM 首回合不得移动 */
+        if (start && st.location.name !== start.place) {
+          st.location = { name: start.place, area: start.area };
+          saveSlot(slot, st);
+          log(`[slot${slot}] 开篇位置已锁定为出生地「${start.place}」`);
+        }
+        return send(200, opening);
       } finally { busy.set(slot, false); }
     }
 

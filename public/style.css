@@ -178,29 +178,38 @@ body {
   .narrative { min-height: 60vh; }
 }
 
-/* 叙事区：纵向滚动，禁横向（minmax(0,1fr) + overflow-x hidden 双保险） */
+/* 叙事区：顶栏固定（回合徽标/闭关状态）+ 内容独立滚动 */
 .narrative {
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: linear-gradient(180deg, var(--panel), rgba(0,0,0,.25));
-  scroll-behavior: smooth;
   position: relative;
+  display: flex;
+  flex-direction: column;
   word-break: break-word;
 }
-.narrative-inner { padding: 0 42px 40px; }
+.nav-head {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(13,11,9,.92), rgba(13,11,9,.55));
+}
 .turn-badge {
-  position: sticky; top: 0; z-index: 5;
-  margin: 0;
-  padding: 26px 42px 10px;
+  padding: 14px 42px 8px;
   text-align: center;
   font-size: 13px; letter-spacing: .25em; color: var(--gold-dim);
-  background: linear-gradient(180deg, rgba(13,11,9,.95), rgba(13,11,9,.8), transparent);
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+}
+.narrative-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 42px 40px;
+  scroll-behavior: smooth;
 }
 .narrative::-webkit-scrollbar, .side::-webkit-scrollbar, .modal::-webkit-scrollbar, .map-body::-webkit-scrollbar, .side-body::-webkit-scrollbar { width: 8px; height: 8px; }
 .narrative::-webkit-scrollbar-thumb, .side::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .map-body::-webkit-scrollbar-thumb, .side-body::-webkit-scrollbar-thumb { background: #2c2417; border-radius: 4px; }
@@ -510,13 +519,11 @@ body {
 .thinking { color: var(--gold-dim); font-size: var(--panel-size, 14.5px); font-style: italic; letter-spacing: .1em; animation: pulse 1.2s ease infinite; }
 @keyframes pulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 
-/* 闭关状态条 */
+/* 闭关状态条（顶栏区，固定） */
 .idle-bar {
-  position: sticky; top: 44px; z-index: 6;
-  margin: 0; padding: 4px 42px 8px;
+  margin: 0; padding: 2px 42px 8px;
   display: flex; align-items: center; justify-content: center; gap: 14px;
   font-size: 14px; color: var(--cyan); letter-spacing: .08em;
-  background: linear-gradient(180deg, rgba(13,11,9,.95), rgba(13,11,9,.85), transparent);
 }
 .idle-bar.hidden { display: none; }
 .idle-bar .ib-timer { font-variant-numeric: tabular-nums; color: var(--gold-b); }
@@ -719,10 +726,36 @@ body {
   border: 2px solid var(--gold-dim); box-shadow: 0 4px 18px rgba(0,0,0,.5), 0 0 24px rgba(201,168,106,.15); }
 .char-id { flex: 1; min-width: 0; }
 .char-dise { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
-.char-dise .dise-chip { font-size: 11.5px; color: var(--gold-dim); border: 1px solid rgba(201,168,106,.25); border-radius: 4px; padding: 2px 9px; letter-spacing: .05em; }
-.char-dise .dise-chip b { color: var(--gold-b); font-weight: 600; }
-.char-dise .dise-chip[data-kind="talent"] { color: var(--jade); border-color: rgba(143,191,127,.3); }
-.char-dise .dise-chip[data-kind="talent"] b { color: var(--jade); }
+.char-dise .dise-chip { font-size: 11.5px; color: var(--gold-b); border: 1px solid rgba(201,168,106,.35); border-radius: 4px; padding: 2px 9px; letter-spacing: .05em; background: rgba(201,168,106,.06); }
+.char-dise .dise-chip b { color: inherit; font-weight: 600; }
+.char-dise .dise-chip[data-kind="talent"] { color: var(--jade); border-color: rgba(143,191,127,.35); background: rgba(143,191,127,.06); }
+.char-dise .dise-chip[data-kind="talent"] b { color: inherit; }
+
+/* ===== 解锁动效：新物品/NPC/任务 中央渐显 ===== */
+#m-unlock { background: rgba(5,4,3,.72); backdrop-filter: blur(2px); }
+.unlock-card {
+  width: min(460px, 90vw); text-align: center; padding: 34px 36px 30px;
+  border: 1px solid var(--gold-dim); border-radius: 12px;
+  background: linear-gradient(180deg, rgba(28,22,14,.96), rgba(16,13,9,.97));
+  box-shadow: 0 0 60px rgba(201,168,106,.18), 0 24px 80px rgba(0,0,0,.8);
+  animation: ul-in .5s cubic-bezier(.2,.9,.25,1.2) both;
+  position: relative; overflow: hidden;
+}
+.unlock-card::before { content: ""; position: absolute; inset: -40%;
+  background: conic-gradient(from 0deg, transparent 0 78%, rgba(201,168,106,.16) 84%, transparent 92%);
+  animation: ul-spin 7s linear infinite; }
+.unlock-card > * { position: relative; z-index: 1; }
+@keyframes ul-in { from { opacity: 0; transform: scale(.82) translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes ul-spin { to { transform: rotate(360deg); } }
+.ul-icon { font-size: 34px; color: var(--gold-b); text-shadow: 0 0 26px rgba(201,168,106,.6); margin-bottom: 10px; }
+.ul-label { font-size: 12px; color: var(--gold-dim); letter-spacing: .5em; margin-bottom: 12px; }
+.ul-title { font-family: var(--kai); font-size: 26px; color: var(--gold-b); letter-spacing: .12em; margin-bottom: 10px; }
+.ul-desc { font-size: 13.5px; color: var(--ink-dim); line-height: 1.9; }
+.ul-type-npc .ul-icon, .ul-type-npc .ul-label { color: var(--cyan); }
+.ul-type-npc .ul-title { color: var(--cyan); }
+.ul-type-quest .ul-icon, .ul-type-quest .ul-label { color: var(--violet); }
+.ul-type-quest .ul-title { color: var(--violet); }
+.ul-hint { margin-top: 14px; font-size: 11px; color: rgba(148,137,122,.5); letter-spacing: .25em; }
 
 /* ===== 设置面板 ===== */
 .settings { width: min(680px, 94vw); }

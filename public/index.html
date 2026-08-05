@@ -38,8 +38,10 @@
 <main class="layout">
   <!-- 剧情卡片 -->
   <section class="narrative card" id="narrative">
-    <div class="turn-badge" id="turn-badge">—</div>
-    <div class="idle-bar hidden" id="idle-bar"></div>
+    <div class="nav-head">
+      <div class="turn-badge" id="turn-badge">—</div>
+      <div class="idle-bar hidden" id="idle-bar"></div>
+    </div>
     <div class="narrative-inner" id="narrative-inner">
       <div class="orn-head">— ✦ —</div>
       <div class="opening">
@@ -360,6 +362,17 @@
       <div class="cs-text" id="cs-text"></div>
     </div>
     <div class="cs-hint">轻触继续</div>
+  </div>
+</div>
+
+<!-- 解锁动效（新物品/NPC/任务渐显） -->
+<div class="modal-mask hidden" id="m-unlock">
+  <div class="unlock-card" id="unlock-card">
+    <div class="ul-icon" id="ul-icon">✦</div>
+    <div class="ul-label" id="ul-label">新解锁</div>
+    <div class="ul-title" id="ul-title"></div>
+    <div class="ul-desc" id="ul-desc"></div>
+    <div class="ul-hint">轻触跳过</div>
   </div>
 </div>
 

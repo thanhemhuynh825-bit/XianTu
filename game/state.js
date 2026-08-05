@@ -134,7 +134,9 @@ function rollRoots() {
 }
 
 function newState(name = '无名散修', traits = {}) {
-  const roll = rollRoots();
+  const roll = (traits.roots && traits.roots.quality && Array.isArray(traits.roots.list) && traits.roots.list.length)
+    ? traits.roots // 建号选定的灵根（否则重新掷定）
+    : rollRoots();
   return {
     version: 6,
     created: Date.now(),
@@ -167,7 +169,7 @@ function newState(name = '无名散修', traits = {}) {
     talent: traits.talent || null,
     name,
     realm: { stage: '炼气', level: 1 },
-    roots: rollRoots(),
+    roots: roll,
     attrs: {
       hp: 100, max_hp: 100,
       mp: 60, max_mp: 60,

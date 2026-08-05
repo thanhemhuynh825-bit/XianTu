@@ -239,13 +239,23 @@ function buildMessages(s, command, rolls = null) {
   return [...hist, { role: 'user', content: `${buildSnapshot(s, rolls)}\n\n【玩家指令】${command}` }];
 }
 
-const OPENING_PROMPT = `【世界开篇】又一位修士踏入了苍玄界。
-这位修士的名讳已在状态快照「身份」中（可能是玩家自定，也可能是天命赐名），开篇与他相认时请以名相称：
-1. 交代其身世来历（围绕他的名字展开：名姓或有所出，若是天命赐名可演绎无名孤儿被赐名/自己立誓改名的来历），在 effects.flags 里记录（如 npc_身世）。出生地默认在镇南「老槐客栈」门前，时辰入暮。
+/* 动态开篇：出身决定出生地与初始境遇（地点已在状态中，GM 据此展开） */
+function buildOpeningPrompt(st) {
+  const o = st.origin;
+  const start = o ? require('./character').ORIGIN_STARTS[o.name] : null;
+  const place = start ? `${start.area}·${start.place}` : `${st.location.area}·${st.location.name}`;
+  const scene = start ? start.desc : `你在${st.location.name}落脚，正盘算着往后如何在这方天地立足。`;
+  return `【世界开篇】又一位修士踏入了苍玄界。
+这名修士的名讳已在状态快照「身份」中（可能是玩家自定，也可能是天命赐名），开篇与他相认时请以名相称。
+出生地已定：此刻他身在「${place}」，快照中的位置与此一致——开篇场景必须从该地展开，不得改到别处。
+他此前的身份：${o ? `出身·${o.name}（${o.desc}）` : '来历不明，连他自己也说不太清'}。初始情境：${scene}
+要求：
+1. 开篇第一幕就落在这个出生地，按出身铺陈身世细节（可在 effects.flags 记 npc_身世），并自然引出"为何踏上修行路"的契机（药童偷学炼丹残卷、世家子持信物赴青云宗、猎户之子猎到带血的妖物……都行）。
 2. 描绘眼前场景与可互动的人/物（至少2个可接触的NPC或地点），NPC 第一句话就要能叫出他的名字。
-3. 给他当下就能行动的小目标（在 available 里给出 3~5 个，如：进客栈打听修炼之道、前往杂货铺、先在镇上转转）。
-4. 文风古雅有画面感，150~300字即可，结尾自然引向第一步行动。
+3. 给他当下就能行动的小目标（available 3~5 个）。
+4. 文风古雅有画面感，150~300字，结尾自然引向第一步行动。
 注意：开局资产已在状态中（30灵石、干粮、止血草、旧木剑、粗布衣），不必再给；不要急着送功法，修炼之道要玩家自己去寻。`;
+}
 
 function revivePrompt(live) {
   return `【事件】这名修士此前身死（或寿尽），如今在${live}醒来复活——气血恢复六成，灵石损失一成。请用简短叙事演绎苏醒场景（约80~150字），自然衔接当前剧情，并给出下一步的行动建议。`;
@@ -297,4 +307,4 @@ function buildQCFacts(st) {
 }
 function safeInv(st) { return st.inventory || {}; }
 
-module.exports = { SYSTEM_PROMPT, buildSnapshot, buildMessages, stageLabel: stageLabelAlias, OPENING_PROMPT, revivePrompt, reincarnatePrompt, GM_RULES_VERSION, QA_SYSTEM, QC_SYSTEM, buildQCFacts };
+module.exports = { SYSTEM_PROMPT, buildSnapshot, buildMessages, stageLabel: stageLabelAlias, buildOpeningPrompt, revivePrompt, reincarnatePrompt, GM_RULES_VERSION, QA_SYSTEM, QC_SYSTEM, buildQCFacts };
