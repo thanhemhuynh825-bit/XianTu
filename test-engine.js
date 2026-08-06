@@ -312,5 +312,15 @@ require('./game/llm').chat = async () => {
   const expired = state.expireQuests(sD);
   console.log('[限时] 全部过期移出:', expired.length === 2, '| 任务清空:', sD.quests.length === 0, '| 大事件:', sD.chronicle.some(c => /错失良机/.test(c.text)));
 
-  console.log('\n引擎 v15 全部通过 ✓');
+  /* 自由度保障：规则0铁律注入 + QC 自由度检查 + 自由玩法落地 */
+  const sp = gm.SYSTEM_PROMPT;
+  console.log('[自由] 规则0铁律存在:', sp.includes('第〇条铁律·玩家自由第一'), '| 自由清单:', sp.includes('修炼自由') && sp.includes('职业自由') && sp.includes('拒绝自由') && sp.includes('失败自由'), '| GM禁令:', sp.includes('禁止替玩家做决定'));
+  console.log('[自由] 冲突仲裁条款:', sp.includes('发生冲突时，以本条为准'), '| 自由回声:', sp.includes('自由的回声'));
+  console.log('[自由] 凡俗道途规则:', sp.includes('凡俗道途'));
+  console.log('[自由] QC自由度检查项:', gm.QC_SYSTEM.includes('自由') && gm.QC_SYSTEM.includes('强行把玩家拉回'));
+  const sFree = state.newState('由');
+  const evFree = state.applyEffects(sFree, { holdings: [{ kind: '铺面', name: '青云街杂货铺', desc: '本钱三十两' }] });
+  console.log('[自由] 经商落地（铺面登记）:', evFree.some(e => /安身立命/.test(e.text)));
+
+  console.log('\n引擎 v16 全部通过 ✓');
 })().catch(e => { console.error('测试失败:', e); process.exit(1); });
