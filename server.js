@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const GAME_VERSION = '1.13.3';
+const GAME_VERSION = '1.13.4';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -933,7 +933,7 @@ const server = http.createServer(async (req, res) => {
 
     /* API 配置：读取 / 保存（朋友机器填 key 即用） */
     if (req.method === 'GET' && p === '/api/getconfig') {
-      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model || 'deepseek-v4-flash', hasKey: !!cfg.apiKey, stt: !!cfg.stt, ark: !!cfg.ark && !!String(cfg.ark.apiKey || '').trim() });
+      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model || 'deepseek-v4-flash', hasKey: !!cfg.apiKey, stt: !!cfg.stt, sttAppId: (cfg.stt && cfg.stt.appId) || '', ark: !!cfg.ark && !!String(cfg.ark.apiKey || '').trim() });
     }
     if (req.method === 'POST' && p === '/api/setconfig') {
       const key = String(body.apiKey || '').trim();

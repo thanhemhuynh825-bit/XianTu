@@ -1419,7 +1419,8 @@ $('btn-settings').addEventListener('click', () => {
     if (c.ok) {
       $('set-apikey-state').textContent = c.hasKey ? '已配置 ✓' : '未配置';
       $('set-apikey-state').style.color = c.hasKey ? 'var(--jade)' : 'var(--cinnabar)';
-      setSttState(!!c.stt);
+      setSttState(!!c.stt, c.sttAppId);
+      if (c.sttAppId) $('set-stt-appid').value = c.sttAppId; // 回显已保存的 AppID
       setArkState(!!c.ark);
     }
   }).catch(() => {});
@@ -1430,10 +1431,10 @@ $('btn-settings').addEventListener('click', () => {
   }).catch(() => {});
   showModal('m-settings');
 });
-function setSttState(on) {
+function setSttState(on, appId) {
   const s = $('set-stt-state');
   if (on) {
-    s.innerHTML = '讯飞语音已接入 ✓ 语音输入走讯飞听写（识别更准）。';
+    s.innerHTML = `讯飞语音已接入 ✓（AppID：${esc(appId || '—')}）——语音输入走讯飞听写（识别更准）。如需更换，重填三项保存即可。`;
     s.style.color = 'var(--jade)';
   } else {
     s.innerHTML = '未接入讯飞：语音输入使用浏览器内置识别（需联网）。可到讯飞开放平台购买「实时语音听写」免费试用包后填入。';
@@ -1676,10 +1677,21 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
     cmd.placeholder = on ? '正在聆听…（说完停顿自动结束）' : PH;
   };
 
+  /* 输入框附近的小弹窗反馈（不污染剧情卡） */
+  let toastTimer = null;
+  const toast = (msg, kind = '') => {
+    const el = $('voice-toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'voice-toast show' + (kind ? ' ' + kind : '');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'voice-toast'; }, 2600);
+  };
+
   const fail = (msg) => {
     setListening(false);
     mic.title = msg;
-    appendTurn({ narration: `（${msg}）` });
+    toast(msg, 'err');
     busy = false;
   };
 
@@ -1774,14 +1786,14 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
       mic.onclick = null;
       busy = false;
       setListening(false);
-      if (!finalText.trim()) {
-        setTimeout(() => appendTurn({ narration: '（未识别到话语——可检查麦克风是否被占用，或靠近一些再说）' }), 200);
-      }
+      const t = finalText.trim();
+      if (t) { toast(`已转录：${t.length > 12 ? t.slice(0, 12) + '…' : t}`, 'ok'); }
+      else { toast('未识别到话语——可检查麦克风是否被占用，或靠近一些再说', 'warn'); }
     };
 
     /* 麦克风：失败给出明确提示（不静默） */
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true } });
     } catch (e) {
       fail('无法使用麦克风（请允许系统/游戏麦克风权限后重试）');
       return;
@@ -1791,6 +1803,11 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
       if (ctx.state !== 'running') { fail('录音启动被浏览器限制，请再次点击麦克风重试'); return; }
       src = ctx.createMediaStreamSource(stream);
       node = ctx.createScriptProcessor(4096, 1, 1);
+      /* 采样率自适应：ctx.sampleRate 可能不是 16000（部分设备忽略 AudioContext 采样率选项），
+         必须手动重采样到 16k 再发送，否则讯飞报 10008（音频数据格式错误） */
+      const inRate = ctx.sampleRate || 48000;
+      const ratio = inRate / 16000;
+      let acc = 0;
       node.onaudioprocess = e => {
         if (done) return;
         const d = e.inputBuffer.getChannelData(0);
@@ -1798,9 +1815,13 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
         for (let i = 0; i < d.length; i++) {
           const s = Math.max(-1, Math.min(1, d[i]));
           sum += s * s;
-          frame.push(s < 0 ? s * 0x8000 : s * 0x7FFF);
+          acc += ratio;
+          while (acc >= 1) {
+            acc -= 1;
+            frame.push(s < 0 ? s * 0x8000 : s * 0x7FFF);
+          }
         }
-        if (frame.length >= 640) sendFrame(1); // 40ms=1280B 一帧
+        if (frame.length >= 640) sendFrame(1); // 40ms=1280B 一帧（16k）
         lvlAcc += Math.sqrt(sum / d.length); lvlN++;
         if (lvlN >= 4) { setLevel(lvlAcc / lvlN); lvlAcc = 0; lvlN = 0; }
       };
