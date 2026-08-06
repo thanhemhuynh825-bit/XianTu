@@ -20,6 +20,7 @@
     <span id="conn" class="conn pending">· 正在接引天道…</span>
   </div>
   <div class="top-actions">
+    <button class="btn battle-btn hidden" id="btn-battle" title="查看当前战斗战况">⚔ 战况</button>
     <span class="btn-group">
       <button class="btn ghost" id="btn-map" title="苍玄界舆图：三级地图查看已探索区域">地图</button>
       <button class="btn ghost" id="btn-slots" title="存档管理：快照留档 / 回档 / 换档">存档</button>
@@ -364,6 +365,15 @@
       </div>
     </div>
     <div class="modal-actions"><button class="btn primary" id="btn-guide-close">明白了，踏入仙途</button></div>
+  </div>
+</div>
+
+<!-- 战况面板：当前战斗的直观判定（敌我对比 / 战力评估 / 判定仪表 / 战术杠杆） -->
+<div class="modal-mask hidden" id="m-battle">
+  <div class="modal battle-panel">
+    <div class="modal-title" id="battle-title">⚔ 战况</div>
+    <div id="battle-body"></div>
+    <div class="modal-actions"><button class="btn ghost" data-close>收兵</button></div>
   </div>
 </div>
 

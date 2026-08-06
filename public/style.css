@@ -432,6 +432,52 @@ body[data-skin="heitie"] { --scroll-thumb: #3a3a30; }
 .q-dl { margin-left: auto; font-size: 11.5px; color: #d9a96b; font-variant-numeric: tabular-nums; cursor: default; white-space: nowrap; flex-shrink: 0; }
 .q-dl.dl-urgent { color: var(--cinnabar); animation: trib-pulse 1.4s ease-in-out infinite; }
 
+/* 战况面板（独立弹窗：敌我对比 / 判定仪表） */
+.battle-btn { margin-right: 6px; }
+.battle-btn.fighting { border-color: var(--cinnabar); color: #e08a72; animation: mic-pulse 1.4s ease-in-out infinite; }
+.battle-panel { width: min(640px, 94vw); }
+.battle-vs { display: flex; align-items: stretch; gap: 12px; margin-bottom: 12px; }
+.bv-side { flex: 1; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: rgba(0,0,0,.25); }
+.bv-side.foe { border-color: rgba(192,82,58,.4); }
+.bv-name { color: var(--gold-b); font-size: 14.5px; margin-bottom: 6px; letter-spacing: .05em; }
+.bv-side.foe .bv-name { color: var(--cinnabar); }
+.bv-bar { height: 10px; border-radius: 5px; background: rgba(0,0,0,.5); overflow: hidden; }
+.bv-bar .mine { background: linear-gradient(90deg, #3a7a5f, var(--jade)); height: 100%; display: block; transition: width .5s ease; }
+.bv-bar .foe { background: linear-gradient(90deg, #7c2c1c, var(--cinnabar)); height: 100%; display: block; transition: width .5s ease; }
+.bv-num { font-size: 12px; color: var(--ink-dim); margin-top: 5px; font-variant-numeric: tabular-nums; }
+.bv-meta { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
+.bv-vs { align-self: center; font-family: var(--kai); color: var(--gold); font-size: 18px; letter-spacing: .1em; }
+.battle-diff { text-align: center; font-size: 15px; padding: 8px 0; border-radius: 6px; margin-bottom: 12px; letter-spacing: .06em; }
+.battle-diff .bd-hint { display: block; font-size: 12px; margin-top: 2px; opacity: .85; }
+.battle-diff.diff-green { color: var(--jade); background: rgba(58,122,95,.1); }
+.battle-diff.diff-yellow { color: #d9c06b; background: rgba(217,192,107,.08); }
+.battle-diff.diff-orange { color: #d9a96b; background: rgba(217,169,107,.08); }
+.battle-diff.diff-red { color: var(--cinnabar); background: rgba(192,82,58,.1); }
+.battle-judge { border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; background: rgba(0,0,0,.2); }
+.bj-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--ink-dim); margin-bottom: 8px; }
+.bj-val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--kai); }
+.bj-val.judge-good { color: var(--jade); }
+.bj-val.judge-mid { color: #d9c06b; }
+.bj-val.judge-bad { color: var(--cinnabar); }
+.bj-track { position: relative; height: 14px; border-radius: 7px; overflow: hidden; display: flex; }
+.bj-zone { flex: 1; }
+.bj-zone.good { background: linear-gradient(90deg, rgba(58,122,95,.55), rgba(93,186,143,.35)); }
+.bj-zone.mid { background: linear-gradient(90deg, rgba(217,192,107,.35), rgba(217,192,107,.5)); }
+.bj-zone.bad { background: linear-gradient(90deg, rgba(192,82,58,.5), rgba(192,82,58,.7)); }
+.bj-needle { position: absolute; top: -2px; bottom: -2px; width: 4px; border-radius: 2px; background: #fff; box-shadow: 0 0 6px rgba(255,255,255,.6); transition: left .5s ease; }
+.bj-needle.judge-good { background: var(--jade); }
+.bj-needle.judge-mid { background: #d9c06b; }
+.bj-needle.judge-bad { background: var(--cinnabar); }
+.bj-legend { display: flex; justify-content: space-between; font-size: 11px; margin-top: 6px; }
+.bj-legend .lg-good { color: var(--jade); } .bj-legend .lg-mid { color: #d9c06b; } .bj-legend .lg-bad { color: var(--cinnabar); }
+.bj-formula { margin-top: 8px; font-size: 12.5px; color: var(--ink-dim); text-align: center; font-variant-numeric: tabular-nums; }
+.bj-formula b { color: var(--gold-b); }
+.battle-lever { font-size: 12.5px; color: var(--gold-b); margin-bottom: 10px; }
+.battle-lever .bc-bar { margin-top: 4px; }
+.bl-note { font-style: normal; color: var(--jade); font-size: 11.5px; margin-left: 8px; }
+.battle-desc { font-size: 12.5px; color: var(--ink-dim); margin-bottom: 8px; line-height: 1.7; }
+.battle-tip { font-size: 11.5px; color: var(--ink-faint); text-align: center; }
+
 /* 战况攻防对比 */
 .battle-compare { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .bc-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-dim); }

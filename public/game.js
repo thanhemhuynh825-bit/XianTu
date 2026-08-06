@@ -354,8 +354,19 @@ function renderState(st) {
         ${hasAtk ? `<div class="bc-row"><span class="bc-label">攻击</span><div class="bc-bar"><span class="mine" style="width:${pct(a.attack, e.atk)}%"></span><span class="foe" style="width:${100 - pct(a.attack, e.atk)}%"></span></div><span class="bc-num">你 ${a.attack} · 敌 ${e.atk}</span></div>` : ''}
         ${hasDef ? `<div class="bc-row"><span class="bc-label">防御</span><div class="bc-bar"><span class="mine" style="width:${pct(a.defense, e.def)}%"></span><span class="foe" style="width:${100 - pct(a.defense, e.def)}%"></span></div><span class="bc-num">你 ${a.defense} · 敌 ${e.def}</span></div>` : ''}
       </div>` : '<div class="bc-row"><span class="bc-label">判定</span><span class="bc-num" style="color:var(--ink-faint)">天道综合修为·法宝·战术裁定</span></div>'}`;
+    renderBattlePanel(st);
+    const bb = $('btn-battle');
+    bb.classList.remove('hidden');
+    bb.classList.add('fighting');
+    if (app.battleAutoShown !== st.enemy.name + ':' + st.turns) {
+      app.battleAutoShown = st.enemy.name + ':' + st.turns;
+      showModal('m-battle'); // 战斗开始/换敌时自动弹出一次
+    }
   } else {
     $('c-enemy').innerHTML = '<div class="empty">四下安宁</div>';
+    $('btn-battle').classList.add('hidden');
+    $('btn-battle').classList.remove('fighting');
+    hideModal('m-battle'); // 战斗结束自动收起
   }
   /* 战斗留痕（最近 3 场） */
   const blog = (st.battleLog || []).slice(-3).reverse();
@@ -369,6 +380,59 @@ function renderState(st) {
   /* 死亡 */
   if (st.dead) { $('death-reason').textContent = st.deathReason || '你倒下了。'; showModal('m-death'); }
 }
+
+/* 战况面板：敌我对比 / 战力评估 / 判定仪表（凶险骰−杠杆）/ 战术杠杆 */
+function renderBattlePanel(st) {
+  const e = st.enemy;
+  if (!e) return;
+  const a = st.attrs;
+  const b = app.lastBattle || {};
+  const diffCls = /悬殊/.test(e.diff) ? 'diff-red' : /远非|吃力/.test(e.diff) ? 'diff-orange' : /略胜|占优/.test(e.diff) ? 'diff-green' : 'diff-yellow';
+  const diffTxt = {
+    'diff-red': '正面必死——速谋脱身、谈判或借势',
+    'diff-orange': '敌强我弱——智取或脱身为上',
+    'diff-yellow': '势均力敌——胜负看天命与谋略',
+    'diff-green': '敌弱我强——可正面击破',
+  }[diffCls] || '';
+  const danger = Number(b.danger);
+  const lever = Number(b.lever) || Number(e.lever) || 0;
+  const eff = Number.isFinite(danger) ? Math.max(0, danger - lever) : null;
+  const effCls = eff == null ? '' : eff < 30 ? 'judge-good' : eff <= 60 ? 'judge-mid' : 'judge-bad';
+  const effTxt = eff == null ? '天道综合裁定' : eff < 30 ? '你占上风' : eff <= 60 ? '势均力敌' : '敌势占优';
+  const myHp = a.max_hp ? Math.round(a.hp / a.max_hp * 100) : 100;
+  const eHp = e.maxHp ? Math.round(e.hp / e.maxHp * 100) : 100;
+  $('battle-title').textContent = `⚔ 战况 · 与 ${e.name} 之战`;
+  $('battle-body').innerHTML = `
+    <div class="battle-vs">
+      <div class="bv-side">
+        <div class="bv-name">你 · ${esc(st.name)}</div>
+        <div class="bv-bar"><span class="mine" style="width:${myHp}%"></span></div>
+        <div class="bv-num">气血 ${a.hp}/${a.max_hp}（${myHp}%）</div>
+        <div class="bv-meta">${esc(stageLabel(st.realm))}</div>
+      </div>
+      <div class="bv-vs">VS</div>
+      <div class="bv-side foe">
+        <div class="bv-name">${esc(e.name)}</div>
+        <div class="bv-bar"><span class="foe" style="width:${eHp}%"></span></div>
+        <div class="bv-num">气血 ${e.hp}/${e.maxHp}（${eHp}%）</div>
+        <div class="bv-meta">${esc(e.realm || '未知')}</div>
+      </div>
+    </div>
+    ${e.diff ? `<div class="battle-diff ${diffCls}">战力评估：${esc(e.diff)}<span class="bd-hint">${diffTxt}</span></div>` : ''}
+    <div class="battle-judge">
+      <div class="bj-head"><span>判定仪表 · ${effTxt}</span><span class="bj-val ${effCls}">${eff == null ? '—' : eff}</span></div>
+      <div class="bj-track">
+        <span class="bj-zone good"></span><span class="bj-zone mid"></span><span class="bj-zone bad"></span>
+        ${eff != null ? `<span class="bj-needle ${effCls}" style="left:${Math.min(100, eff)}%"></span>` : ''}
+      </div>
+      <div class="bj-legend"><span class="lg-good">≤30 你占优</span><span class="lg-mid">31~60 均势</span><span class="lg-bad">>60 敌占优</span></div>
+      ${Number.isFinite(danger) ? `<div class="bj-formula">凶险骰 <b>${danger}</b> − 战术杠杆 <b>${lever}</b> = 有效 <b>${eff}</b></div>` : ''}
+    </div>
+    ${lever ? `<div class="battle-lever"><span>战术杠杆 +${lever} <em class="bl-note">你的智取正在生效</em></span><div class="bc-bar"><span class="mine" style="width:${Math.min(100, lever * 2)}%"></span></div></div>` : ''}
+    ${e.desc ? `<div class="battle-desc">${esc(e.desc)}</div>` : ''}
+    <div class="battle-tip">胜负由天道综合修为·法宝·功法·战术裁定——面板仅供参考，谋略永远有路。</div>`;
+}
+$('btn-battle').addEventListener('click', () => toggleModal('m-battle'));
 
 /* 闭关：开始 / 状态条 / 出关 */
 function renderIdleBar(st) {
@@ -492,6 +556,7 @@ async function send(cmd) {
       return;
     }
     app.lastAvailable = res.available || [];
+    app.lastBattle = res.battle || null; // 战况面板数据源（凶险骰/杠杆/评估）
     appendTurn(res);
     renderState(res.state);
     renderChips();
