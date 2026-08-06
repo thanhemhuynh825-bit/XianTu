@@ -1,5 +1,5 @@
 'use strict';
-/* electron-builder afterPack：打包后自动为 exe 应用「仙」字图标与版本信息 */
+/* electron-builder afterPack：打包后自动为 exe 应用「仙」字图标与版本信息；并从分发产物中剥离 apiKey（防泄露） */
 const { spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -23,7 +23,33 @@ module.exports = async function (context) {
     if (status !== 0) {
       console.warn('[afterPack] rcedit 失败:', stderr || `exit ${status}`);
     } else {
-      console.log('[afterPack] ✓ 图标已应用:', exePath);
+      console.log('[afterPack] ✓ 图标已应用', exePath);
+    }
+
+    /* 安全：从分发产物 app.asar 中剥离 apiKey（本机密钥不随 EXE 外发） */
+    try {
+      const asar = require('@electron/asar');
+      const asarPath = path.join(appOutDir, 'resources', 'app.asar');
+      if (fs.existsSync(asarPath)) {
+        const tmp = path.join(appOutDir, 'resources', 'app-strip');
+        fs.rmSync(tmp, { recursive: true, force: true });
+        asar.extractAll(asarPath, tmp);
+        const cfgPath = path.join(tmp, 'config.json');
+        if (fs.existsSync(cfgPath)) {
+          const j = JSON.parse(fs.readFileSync(cfgPath, 'utf8').replace(/^\uFEFF/, ''));
+          if (j.apiKey) {
+            j.apiKey = '';
+            fs.writeFileSync(cfgPath, JSON.stringify(j, null, 2), 'utf8');
+            console.log('[afterPack] 已剥离 apiKey（防泄露）');
+          } else {
+            console.log('[afterPack] apiKey 为空，无需剥离');
+          }
+        }
+        await asar.createPackage(tmp, asarPath);
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    } catch (e) {
+      console.warn('[afterPack] 剥离 apiKey 失败（忽略）:', e.message);
     }
   } catch (e) {
     console.warn('[afterPack] 异常:', e.message);
