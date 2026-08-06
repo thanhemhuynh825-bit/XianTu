@@ -842,12 +842,12 @@ function deadlineHours(dl) {
   return null;
 }
 
-/* 天劫失败：境界跌落（炼气跌 3 层，其余回上一大境界）+ 重伤 */
+/* 天劫失败：境界跌落（跌回上一大境界圆满；炼气跌 3 层）+ 重伤 */
 function tribFall(st, note, events) {
   const idx = STAGE_ORDER.indexOf(st.realm.stage);
   const from = realmText(st);
   if (idx > 0) {
-    st.realm = { stage: STAGE_ORDER[idx - 1], level: STAGE_ORDER[idx - 1] === '炼气' ? Math.max(1, st.realm.level - 3) : 1 };
+    st.realm = { stage: STAGE_ORDER[idx - 1], level: STAGE_ORDER[idx - 1] === '炼气' ? 12 : 4 }; // 跌回上一境界圆满
   } else {
     st.realm = { stage: st.realm.stage, level: Math.max(1, st.realm.level - 3) };
   }
@@ -871,10 +871,10 @@ function expireQuests(s) {
   return out;
 }
 
-/* 天劫自动兜底：GM 连续两回合未写渡劫结果时，服务器按天命判定（≥60 成功，否则降境重伤） */
+/* 天劫自动兜底：突破后的次回合（s.turns 已越过 tr.turn）仍未结算时，服务器按天命判定（≥60 成功，否则降境重伤） */
 function autoTribulation(s) {
   const tr = s.tribulation;
-  if (!tr || tr.turn == null || tr.turn >= s.turns) return null;
+  if (!tr || tr.turn == null || tr.turn > s.turns) return null; // 尚未到兜底窗口（突破后首回合给 GM 演绎机会）
   const r = mulberry32((s.rngSeed + s.turns * 2081) >>> 0)();
   if (Math.round(r * 100) >= 60) {
     s.tribulation = null;

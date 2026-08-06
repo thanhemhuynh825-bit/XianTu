@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const GAME_VERSION = '1.12.0';
+const GAME_VERSION = '1.12.1';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -247,6 +247,8 @@ const QC_DOUBT_RE = /为什么|为何|刚才|之前|不是说过|不是刚|不�
 
 /* ---------- GM 单回合对话（新开篇/指令/复活/轮回 共用） ---------- */
 async function gmTurn(slot, st, command, opts = {}) {
+  const preEvents = []; // 回合前系统事件（限时过期/天劫兜底），回合末与 applyEffects 事件合并
+  const warnings = [];
   /* 剧情监察提示注入：上回合的问题由本回合自然圆回（不打断体验） */
   if (!opts.skipHistory && Array.isArray(st.pendingQC) && st.pendingQC.length) {
     const notes = st.pendingQC.map(q => `${q.issues.join('；')}${q.suggestion ? `（建议：${q.suggestion}）` : ''}`).join('；');
@@ -262,15 +264,15 @@ async function gmTurn(slot, st, command, opts = {}) {
     const expired = expireQuests(st);
     if (expired.length) {
       warnings.push(`限时任务已过期：${expired.map(q => q.title).join('、')}（按叙事收尾：NPC 已离开/宝物被夺/线索断绝，并在叙事中自然交代结果）`);
-      for (const q of expired) events.push({ t: 'quest', text: `错失良机：${q.title}（限时已过，世界已另做安排）` });
+      for (const q of expired) preEvents.push({ t: 'quest', text: `错失良机：${q.title}（限时已过，世界已另做安排）` });
     }
   }
-  /* 天劫兜底：GM 连续两回合未结算渡劫时，服务器按天命判定（≥60 成功，否则降境重伤） */
+  /* 天劫兜底：突破后的次回合仍未结算渡劫时，服务器按天命判定（≥60 成功，否则降境重伤） */
   if (!opts.skipHistory && st.tribulation) {
     const auto = autoTribulation(st);
     if (auto) {
       warnings.push(`天劫自动判定：${auto.note}`);
-      events.push({ t: 'system', text: `⚡ ${auto.note}` });
+      preEvents.push({ t: 'system', text: `⚡ ${auto.note}` });
     }
   }
   const rolls = opts.noRolls ? null : fateRolls(st);
@@ -278,14 +280,13 @@ async function gmTurn(slot, st, command, opts = {}) {
   const { json, raw } = await chat(cfg, SYSTEM_PROMPT, messages, opts.json !== false);
   const narration = typeof json.narration === 'string' ? json.narration.trim() : '（天地沉默，未有回应。）';
   const effects = json.effects && typeof json.effects === 'object' ? json.effects : {};
-  const warnings = [];
   const timeBefore = st.timeH;
   const locBefore = st.location.name;
   const invBefore = { ...st.inventory }; // 行囊对账基准
   const npcBefore = { ...(st.npcs || {}) }; // 解锁检测基准
   const questBefore = new Set((st.quests || []).map(q => q.title)); // 解锁检测基准
   const fused = applyFuses(st, JSON.parse(JSON.stringify(effects)), warnings);
-  const events = applyEffects(st, fused);
+  const events = [...preEvents, ...applyEffects(st, fused)];
 
   /* 状态自动结算：中毒/内伤等每回合发作（回合开始时） */
   if (!opts.skipHistory && (st.conditions || []).length) {
@@ -817,8 +818,12 @@ const server = http.createServer(async (req, res) => {
       const st = loadSlot(slot);
       if (!st) return send(404, err('NOSAVE', '该档位没有角色。'));
       const settled = settleIdleNow(st); // 挂机到期静默结算，events 随响应带回
-      if (settled.events.length) saveSlot(slot, st);
-      return send(200, { ok: true, data: st, events: settled.events });
+      const evs = [...settled.events];
+      /* 限时任务过期检查（打开游戏/刷新时同步结算，避免"已过"任务滞留界面） */
+      const expired = expireQuests(st);
+      for (const q of expired) evs.push({ t: 'quest', text: `错失良机：${q.title}（限时已过，世界已另做安排）` });
+      if (settled.events.length || expired.length) saveSlot(slot, st);
+      return send(200, { ok: true, data: st, events: evs });
     }
     if (req.method === 'POST' && p === '/api/import') {
       const slot = Math.max(1, Math.min(3, parseInt(body.slot) || 1));

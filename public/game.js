@@ -303,7 +303,12 @@ function renderState(st) {
         const remainH = q.deadlineH - st.timeH;
         const d = Math.floor(remainH / 24), s = Math.floor((remainH % 24) / 2);
         const warn = remainH <= 24 ? 'dl-urgent' : '';
-        dl = `<span class="q-dl ${warn}" data-tip="${esc(`限时任务：${q.deadline}内完成，逾期即失。世界言而有信——错过就是错过。`)}">⏳ ${d > 0 ? d + '日' : ''}${s > 0 ? s + '时辰' : remainH > 0 ? '将尽' : '已过'}</span>`;
+        let dlTxt = '';
+        if (remainH <= 0) dlTxt = '已过';
+        else if (d > 0) dlTxt = d + '日' + (s > 0 ? s + '时辰' : '');
+        else if (s > 0) dlTxt = s + '时辰';
+        else dlTxt = '将尽';
+        dl = `<span class="q-dl ${warn}" data-tip="${esc(`限时任务：${q.deadline}内完成，逾期即失。世界言而有信——错过就是错过。`)}">⏳ ${dlTxt}</span>`;
       }
       return `<div class="quest-row ${kc}"><span class="q-kind">${esc(q.kind || '委托')}</span><span class="q-t">${esc(q.title)}</span>${q.desc ? `<span class="q-d">${esc(q.desc)}</span>` : ''}${dl}</div>`;
     }).join('')
