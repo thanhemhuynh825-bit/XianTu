@@ -5,7 +5,7 @@
  * 内置本地服务器 + 原生窗口，一键运行，无需浏览器
  * ============================================================ */
 
-const { app, BrowserWindow, shell, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const net = require('net');
@@ -67,11 +67,19 @@ app.whenReady().then(async () => {
       } else {
         const bundled = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.json'), 'utf8'));
         const local = JSON.parse(fs.readFileSync(extConfig, 'utf8'));
+        let changed = false;
         if (bundled.updateUrl && !local.updateUrl) {
           local.updateUrl = bundled.updateUrl;
-          fs.writeFileSync(extConfig, JSON.stringify(local, null, 2), 'utf8');
+          changed = true;
           log('updateUrl 已自动配置:', local.updateUrl);
         }
+        /* 讯飞语音配置：内置有而本地缺时自动补齐（新功能开箱即用） */
+        if (bundled.stt && !local.stt) {
+          local.stt = bundled.stt;
+          changed = true;
+          log('讯飞语音配置已自动补齐');
+        }
+        if (changed) fs.writeFileSync(extConfig, JSON.stringify(local, null, 2), 'utf8');
       }
     } catch (e) { log('config init failed:', e.message); }
 
@@ -96,6 +104,10 @@ app.whenReady().then(async () => {
         sandbox: true,
         preload: path.join(__dirname, 'preload.js'),
       },
+    });
+    /* 语音输入：允许麦克风权限（讯飞/内置语音识别用） */
+    session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+      callback(permission === 'media');
     });
     win.setMenuBarVisibility(false);
     Menu.setApplicationMenu(null);

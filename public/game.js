@@ -1323,6 +1323,7 @@ $('btn-settings').addEventListener('click', () => {
     if (c.ok) {
       $('set-apikey-state').textContent = c.hasKey ? '已配置 ✓' : '未配置';
       $('set-apikey-state').style.color = c.hasKey ? 'var(--jade)' : 'var(--cinnabar)';
+      setSttState(!!c.stt);
     }
   }).catch(() => {});
   fetch('/api/update/status').then(r => r.json()).then(u => {
@@ -1331,6 +1332,36 @@ $('btn-settings').addEventListener('click', () => {
     }
   }).catch(() => {});
   showModal('m-settings');
+});
+function setSttState(on) {
+  const s = $('set-stt-state');
+  if (on) {
+    s.innerHTML = '讯飞语音已接入 ✓ 语音输入走讯飞听写（识别更准）。';
+    s.style.color = 'var(--jade)';
+  } else {
+    s.innerHTML = '未接入讯飞：语音输入使用浏览器内置识别（需联网）。可到讯飞开放平台购买「实时语音听写」免费试用包后填入。';
+    s.style.color = 'var(--ink-faint)';
+  }
+}
+$('set-stt-save').addEventListener('click', async () => {
+  const stt = {
+    appId: $('set-stt-appid').value.trim(),
+    apiKey: $('set-stt-apikey').value.trim(),
+    apiSecret: $('set-stt-apisecret').value.trim(),
+  };
+  const r = await api('/api/setconfig', { stt });
+  if (r.ok) { setSttState(!!r.stt); alert('讯飞语音已保存' + (r.stt ? '，重启游戏后生效。' : '。')); }
+  else alert(r.error?.msg || '保存失败');
+});
+$('set-stt-clear').addEventListener('click', async () => {
+  const r = await api('/api/setconfig', { stt: null });
+  if (r.ok) {
+    $('set-stt-appid').value = '';
+    $('set-stt-apikey').value = '';
+    $('set-stt-apisecret').value = '';
+    setSttState(false);
+    alert('讯飞语音已清除。');
+  } else alert(r.error?.msg || '清除失败');
 });
 $('set-apikey-save').addEventListener('click', async () => {
   const key = $('set-apikey').value.trim();
@@ -1506,36 +1537,154 @@ function toggleModal(id) { $(id).classList.toggle('hidden'); }
 /* ---------- 事件绑定 ---------- */
 $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').value = ''));
 
-/* ---------- 语音输入：浏览器/Electron 内置语音识别（零配置零密钥，需联网） ---------- */
+/* ---------- 语音输入：讯飞实时语音听写（优先）→ 浏览器内置识别（兜底） ---------- */
 (() => {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const mic = $('btn-mic');
-  if (!SR || !mic) return;
-  let rec = null, recOn = false;
-  const setMic = on => {
-    recOn = on;
+  if (!mic) return;
+  let engine = 'none';           // 'xfyun' | 'builtin' | 'none'
+  let busy = false;
+
+  const setMic = (on, title) => {
     mic.classList.toggle('on', on);
-    mic.title = on ? '听音中…点击停止' : '语音输入：说中文，自动转成文字填入（需联网）';
+    if (title) mic.title = title;
   };
-  mic.addEventListener('click', () => {
-    if (recOn) { rec.stop(); return; }
+
+  /* 启动时探测可用引擎 */
+  const probe = async () => {
+    try {
+      const r = await fetch('/api/stt/auth').then(x => x.json());
+      if (r && r.ok && r.url) { engine = 'xfyun'; setMic(false, '语音输入（讯飞听写 · 说中文自动转文字）'); return; }
+    } catch {}
+    if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+      engine = 'builtin';
+      setMic(false, '语音输入（浏览器内置 · 说中文自动转文字 · 需联网）');
+      return;
+    }
+    mic.classList.add('hidden');
+  };
+  probe();
+
+  const fill = txt => {
+    const cmd = $('cmd');
+    cmd.value = (cmd.value ? cmd.value.trimEnd() + '，' : '') + txt;
+    cmd.focus();
+  };
+
+  /* 讯飞 iat：录音 → PCM 16k → 增量识别 */
+  const startXfyun = async url => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true } });
+    const ws = new WebSocket(url);
+    let frame = [];                 // 累积 Int16 → 1280 字节/帧（40ms）
+    let opened = false;
+    let finalText = '';
+    let done = false;
+    const pcmQueue = [];
+
+    const sendFrame = status => {
+      const payload = BufferShim(pcmQueue, status);
+      ws.send(JSON.stringify({
+        common: { app_id: appIdHint },
+        business: { language: 'zh_cn', domain: 'iat', accent: 'mandarin', vad_eos: 2500, dwa: 'wpgs', ptt: 0 },
+        data: { status, format: 'audio/L16;rate=16000', encoding: 'raw', audio: payload },
+      }));
+      pcmQueue.length = 0;
+    };
+
+    const audio = new AudioContext({ sampleRate: 16000 });
+    const src = audio.createMediaStreamSource(stream);
+    const node = audio.createScriptProcessor(4096, 1, 1);
+    node.onaudioprocess = e => {
+      if (done) return;
+      const d = e.inputBuffer.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const s = Math.max(-1, Math.min(1, d[i]));
+        frame.push(s < 0 ? s * 0x8000 : s * 0x7FFF);
+        if (frame.length >= 640) { pcmQueue.push(new Int16Array(frame)); frame = []; }
+      }
+    };
+    src.connect(node);
+    node.connect(audio.destination);
+
+    ws.onopen = () => { opened = true; sendFrame(0); };
+    ws.onmessage = ev => {
+      try {
+        const m = JSON.parse(ev.data);
+        if (m.code !== 0) { fail(`听写失败（${m.code}），可重试或直接打字`); return; }
+        if (m.data && m.data.result && m.data.result.text) finalText += m.data.result.text;
+        if (m.data && m.data.status === 2) stop(true);
+      } catch {}
+    };
+    ws.onerror = () => { if (!done) fail('听写连接异常，可重试或直接打字'); };
+    ws.onclose = () => {};
+
+    const stop = (normal) => {
+      if (done) return;
+      done = true;
+      if (opened) sendFrame(2);   // 收尾帧（普通关闭前补发）
+      cleanup();
+      if (normal) setTimeout(() => { if (finalText.trim()) fill(finalText.trim()); setMic(false); }, 300);
+    };
+    const cleanup = () => {
+      try { src.disconnect(); node.disconnect(); node.onaudioprocess = null; } catch {}
+      try { stream.getTracks().forEach(t => t.stop()); } catch {}
+      try { audio.close(); } catch {}
+      setTimeout(() => { try { ws.close(); } catch {} }, 300);
+      busy = false;
+    };
+
+    mic.onclick = () => stop(true); // 手动点停
+    setMic(true, '听音中…（停顿 2.5 秒自动结束，或点击停止）');
+  };
+
+  const fail = msg => { setMic(false, msg); appendTurn({ narration: `（${msg}）` }); };
+
+  let appIdHint = '';
+  let rec = null, builtinOn = false;
+  const startBuiltin = () => {
     if (!rec) {
-      rec = new SR();
+      rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
       rec.lang = 'zh-CN';
       rec.continuous = false;
       rec.interimResults = false;
-      rec.onresult = ev => {
-        const txt = Array.from(ev.results || []).map(r => r[0].transcript).join('，').trim();
-        const cmd = $('cmd');
-        cmd.value = (cmd.value ? cmd.value.trimEnd() + '，' : '') + txt;
-        cmd.focus();
-        setMic(false);
-      };
-      rec.onerror = () => { appendTurn({ narration: '（听音落空：语音识别需要联网，可重试或直接打字）' }); setMic(false); };
+      rec.onresult = ev => { fill(Array.from(ev.results || []).map(r => r[0].transcript).join('，').trim()); setMic(false); };
+      rec.onerror = () => { fail('听音落空：内置识别需联网，可重试或直接打字'); };
       rec.onend = () => setMic(false);
     }
-    try { rec.start(); setMic(true); } catch { setMic(false); }
+    rec.start();
+    setMic(true, '听音中…点击停止');
+  };
+
+  mic.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      if (engine === 'xfyun') {
+        const r = await fetch('/api/stt/auth').then(x => x.json());
+        if (r && r.ok) { appIdHint = r.appId || ''; await startXfyun(r.url); return; }
+        engine = 'builtin';
+      }
+      if (engine === 'builtin') { startBuiltin(); return; }
+      fail('当前环境不支持语音输入');
+    } catch (e) {
+      fail('无法使用麦克风（请检查系统录音权限）');
+    }
+    busy = false;
   });
+
+  /* Int16Array 缓冲 → base64（40ms 帧） */
+  function BufferShim(queue, status) {
+    let len = 0;
+    for (const a of queue) len += a.length;
+    const buf = new Int16Array(len);
+    let off = 0;
+    for (const a of queue) { buf.set(a, off); off += a.length; }
+    const bytes = new Uint8Array(buf.buffer);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+  }
 })();
 
 $('cmd').addEventListener('keydown', e => {

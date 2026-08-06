@@ -117,14 +117,25 @@ const AudioSys = (() => {
   }
 
   /* ---------- 场景切换（交叉淡化；单曲模式不再切换） ---------- */
+  /* Audio 元素接入 WebAudio 图必须经 createMediaElementSource 桥接（元素本身没有 connect 方法） */
+  function toNode(a) {
+    if (!a) return null;
+    if (a.__srcNode) return a.__srcNode;
+    if (typeof a.connect === 'function') { a.__srcNode = a; return a; } // 已是 AudioNode
+    try { a.__srcNode = ctx.createMediaElementSource(a); return a.__srcNode; }
+    catch { return a; } // 极端情况退化为无声直接播放（元素本身也能发声）
+  }
   function switchTo(tag) {
     if (!ctx || current.tag === tag || singleMode) return;
     const old = current;
     current = { tag, type: null };
     if (old.src) {
       const g = ctx.createGain();
-      old.src.disconnect();
-      old.src.connect(g); g.connect(musicGain);
+      const on = toNode(old.src);
+      if (on && on.disconnect) {
+        on.disconnect();
+        on.connect(g); g.connect(musicGain);
+      }
       g.gain.setValueAtTime(musicGain.gain.value, ctx.currentTime);
       g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2);
       old.src.addEventListener('ended', () => { try { old.src.src = ''; } catch { /* ignore */ } });
@@ -140,7 +151,9 @@ const AudioSys = (() => {
         src.volume = 0;
         src.play().catch(() => {});
         const fade = ctx.createGain();
-        src.connect(fade); fade.connect(musicGain);
+        const on = toNode(src);
+        if (on && on.connect) on.connect(fade);
+        fade.connect(musicGain);
         fade.gain.setValueAtTime(0.0001, ctx.currentTime);
         fade.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 2.2);
         current.src = src;
@@ -167,7 +180,9 @@ const AudioSys = (() => {
       genStop();
       src.play().catch(() => {});
       const fade = ctx.createGain();
-      src.connect(fade); fade.connect(musicGain);
+      const on = toNode(src);
+      if (on && on.connect) on.connect(fade);
+      fade.connect(musicGain);
       fade.gain.setValueAtTime(0.0001, ctx.currentTime);
       fade.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 2.5);
       current = { tag: 'single', type: 'file', src };

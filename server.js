@@ -9,8 +9,9 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
-const GAME_VERSION = '1.10.0';
+const GAME_VERSION = '1.11.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -484,6 +485,19 @@ function staticServe(req, res, pathname) {
   });
 }
 
+/* 讯飞语音听写（iat）：生成 5 分钟有效的 WebSocket 鉴权地址（secret 不落地前端） */
+function sttAuthUrl() {
+  const { appId, apiKey, apiSecret } = cfg.stt || {};
+  if (!appId || !apiKey || !apiSecret) return null;
+  const host = 'iat-api.xfyun.cn';
+  const date = new Date().toUTCString();
+  const sigOrigin = `host: ${host}\ndate: ${date}\nGET /v2/iat HTTP/1.1`;
+  const signature = crypto.createHmac('sha256', apiSecret).update(sigOrigin, 'utf8').digest('base64');
+  const authOrigin = `api_key="${apiKey}", algorithm="hmac-sha256", headers="host date request-line", signature="${signature}"`;
+  const authorization = Buffer.from(authOrigin, 'utf8').toString('base64');
+  return `wss://${host}/v2/iat?authorization=${encodeURIComponent(authorization)}&date=${encodeURIComponent(date)}&host=${host}`;
+}
+
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, `http://${req.headers.host}`);
   const p = u.pathname;
@@ -503,7 +517,13 @@ const server = http.createServer(async (req, res) => {
         if (!st) return { slot, has: false };
         return { slot, has: true, name: st.name, realm: realmText(st), location: st.location.name, turns: st.turns, dead: st.dead, updated: st.updated || st.created }; // updated=最近游玩时间
       });
-      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model, slots });
+      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model, slots, stt: !!cfg.stt });
+    }
+
+    /* 讯飞语音听写：返回已签名的 wss 地址（前端直连识别，secret 不离开服务器） */
+    if (req.method === 'GET' && p === '/api/stt/auth') {
+      const url = sttAuthUrl();
+      return send(200, url ? { ok: true, appId: cfg.stt.appId, url } : { ok: false });
     }
 
     const body = await readBody(req);
@@ -804,20 +824,38 @@ const server = http.createServer(async (req, res) => {
 
     /* API 配置：读取 / 保存（朋友机器填 key 即用） */
     if (req.method === 'GET' && p === '/api/getconfig') {
-      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model || 'deepseek-v4-flash', hasKey: !!cfg.apiKey });
+      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model || 'deepseek-v4-flash', hasKey: !!cfg.apiKey, stt: !!cfg.stt });
     }
     if (req.method === 'POST' && p === '/api/setconfig') {
       const key = String(body.apiKey || '').trim();
       if (key && key.length < 8) return send(400, err('BADKEY', 'API Key 格式可疑，请核对。'));
       if (key) cfg.apiKey = key;
       else cfg.apiKey = ''; // 允许清空
+      /* 讯飞语音听写配置（可整体保存或清空） */
+      let sttMsg = '';
+      if (body.stt !== undefined) {
+        const stt = body.stt && typeof body.stt === 'object' ? {
+          appId: String(body.stt.appId || '').trim(),
+          apiKey: String(body.stt.apiKey || '').trim(),
+          apiSecret: String(body.stt.apiSecret || '').trim(),
+        } : null;
+        if (stt && (stt.appId || stt.apiKey || stt.apiSecret)) {
+          if (!stt.appId || !stt.apiKey || !stt.apiSecret) return send(400, err('BADSTT', '讯飞配置需三项齐全：AppID / APIKey / APISecret。'));
+          cfg.stt = stt;
+          sttMsg = '讯飞语音已接入。';
+        } else {
+          cfg.stt = null;
+          sttMsg = '讯飞语音已清除。';
+        }
+      }
       const configDir = process.env.XMUD_CONFIG_DIR || ROOT;
       try {
         const fp = path.join(configDir, 'config.json');
         const cur = JSON.parse(fs.readFileSync(fp, 'utf8'));
         cur.apiKey = key;
+        if (body.stt !== undefined) cur.stt = cfg.stt || undefined;
         fs.writeFileSync(fp, JSON.stringify(cur, null, 2), 'utf8');
-        return send(200, { ok: true, configured: !!key, msg: key ? 'API Key 已保存并生效。' : 'API Key 已清空。' });
+        return send(200, { ok: true, configured: !!key, stt: !!cfg.stt, msg: [key ? 'API Key 已保存并生效。' : 'API Key 已清空。', sttMsg].filter(Boolean).join('') });
       } catch (e) {
         return send(500, err('SAVEFAIL', `配置写入失败：${e.message}`));
       }

@@ -8,6 +8,10 @@
   "maxTokens": 4096,
   "useJsonMode": true,
   "disableThinking": true,
-  "updateUrl": "github:thanhemhuynh825-bit/XianTu"
+  "updateUrl": "github:thanhemhuynh825-bit/XianTu",
+  "stt": {
+    "appId": "ded99a25",
+    "apiKey": "933bfea5256e968702f63ed459d5e51f",
+    "apiSecret": "NDJlZjBlMTJhNTcxOTQ0NzEwZGRiMDFm"
+  }
 }
-
