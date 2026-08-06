@@ -546,7 +546,10 @@ async function showSlots() {
   list.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', async () => {
     app.slot = Number(b.dataset.new);
     $('m-new-title').textContent = `开辟第 ${app.slot} 档 · 命运初定`;
-    hideModal('m-slots'); showModal('m-new'); $('new-name').focus();
+    hideModal('m-slots'); showModal('m-new');
+    const focusName = () => { try { $('new-name').focus(); } catch { /* ignore */ } };
+    focusName();
+    setTimeout(focusName, 280); // 弹窗动画结束后再次聚焦（Electron 下防止焦点丢失）
     charCreate.rerolls = 20;
     $('reroll-count').textContent = '…';
     const r = await api('/api/preview', { gender: currentGender() });
@@ -773,9 +776,12 @@ document.querySelectorAll('input[name="sex"]').forEach(r => r.addEventListener('
 
 async function startNewGame() {
   const name = $('new-name').value.trim();
+  const menuWasHidden = $('m-menu').classList.contains('hidden');
   hideModal('m-new');
+  hideMenu(); // 立即离开启动页进入「开篇推演」界面（等待期显示占位，不再停留菜单）
   clearNarrative();
   app.viewSlot = app.slot;
+  resetPanel(app.slot); // 立即清除旧档残留：开篇推演期间不再显示其他存档的内容
   appendTurn({ narration: `—— 第 ${app.slot} 档 · 天地初开 ——` });
   appendThinking();
   app.busy = true;
@@ -788,6 +794,7 @@ async function startNewGame() {
     if (!res.ok) {
       if (res.error?.code === 'NO_KEY') { showModal('m-nokey'); return; }
       appendTurn({ narration: `⚠ ${res.error?.msg || '开篇失败'}` });
+      if (!menuWasHidden) showMenu(); // 首页路径失败：回到启动页
       return;
     }
     app.lastAvailable = res.available || [];
@@ -798,7 +805,37 @@ async function startNewGame() {
   } catch {
     removeThinking();
     appendTurn({ narration: '⚠ 开篇时与天道断联，请重试。' });
+    if (!menuWasHidden) showMenu();
   } finally { app.busy = false; }
+}
+
+/* 面板占位：切档/建号期间清除旧存档的界面残留 */
+function resetPanel(slot) {
+  try { $('turn-badge').textContent = `第 ${slot} 档 · 开篇推演中`; } catch {}
+  try { $('c-avatar').src = 'avatars/male.webp'; } catch {}
+  try { $('c-name').textContent = '—'; } catch {}
+  try { $('c-meta').textContent = '命运未定'; } catch {}
+  try { $('c-fame').innerHTML = ''; } catch {}
+  try { $('c-roots').textContent = ''; } catch {}
+  try { $('c-dise').innerHTML = ''; } catch {}
+  try { $('c-stats').innerHTML = ''; } catch {}
+  try { setBar('hp', 0, 1, 't-hp', '—'); setBar('mp', 0, 1, 't-mp', '—'); setBar('exp', 0, 1, 't-exp', '—'); } catch {}
+  try { $('c-tech').innerHTML = '<div class="empty">—</div>'; } catch {}
+  try { $('c-equip').innerHTML = ''; } catch {}
+  try { $('bag-count').textContent = ''; } catch {}
+  try { $('c-bag').innerHTML = '<div class="empty">—</div>'; } catch {}
+  try { $('c-loc').textContent = '—'; } catch {}
+  try { $('c-area').textContent = '—'; } catch {}
+  try { $('c-explored').innerHTML = ''; } catch {}
+  try { $('c-quests').innerHTML = '<div class="empty">—</div>'; } catch {}
+  try { $('c-holdings').innerHTML = '<div class="empty">—</div>'; } catch {}
+  try { $('c-hooks').innerHTML = '<div class="empty">—</div>'; } catch {}
+  try { $('c-pets').innerHTML = '<div class="empty">—</div>'; } catch {}
+  try { $('pets-count').textContent = ''; } catch {}
+  try { $('c-conds').innerHTML = '<div class="empty">—</div>'; } catch {}
+  try { $('c-enemy').innerHTML = '<div class="empty">四下安宁</div>'; } catch {}
+  try { $('c-battles').innerHTML = '<div class="empty">—</div>'; } catch {}
+  app.lastAttrs = null;
 }
 
 /* ---------- 复活 / 轮回 ---------- */

@@ -532,8 +532,9 @@ body[data-skin="heitie"] { --scroll-thumb: #3a3a30; }
 /* 模态 */
 .modal-mask {
   position: fixed; inset: 0; z-index: 50; background: rgba(5,4,3,.78);
-  display: grid; place-items: center; backdrop-filter: blur(3px);
+  display: grid; place-items: center;
   animation: fadein .25s ease both;
+  /* 注意：不使用 backdrop-filter——Electron 下合成层偶发遮挡点击（输入框点不动） */
 }
 @keyframes fadein { from { opacity: 0; } }
 .modal-mask.hidden { display: none; }
