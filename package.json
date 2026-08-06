@@ -1,7 +1,7 @@
 {
   "name": "xiantu",
   "productName": "仙途",
-  "version": "1.13.2",
+  "version": "1.13.3",
   "description": "仙途 — AI 实时演绎修仙文字世界",
   "main": "desktop/main.js",
   "scripts": {

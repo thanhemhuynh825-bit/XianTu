@@ -1658,37 +1658,55 @@ function toggleModal(id) { $(id).classList.toggle('hidden'); }
 /* ---------- 事件绑定 ---------- */
 $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').value = ''));
 
-/* ---------- 语音输入：讯飞实时语音听写（优先）→ 浏览器内置识别（兜底） ---------- */
+/* ---------- 语音输入：讯飞听写（优先）→ 内置识别（兜底）
+ * 关键：AudioContext 必须在用户手势内创建并 resume，否则保持 suspended、录音无数据（"点了没反应"） ---------- */
 (() => {
   const mic = $('btn-mic');
+  const meter = $('voice-meter');
+  const cmd = $('cmd');
   if (!mic) return;
   let engine = 'none';           // 'xfyun' | 'builtin' | 'none'
   let busy = false;
+  let liveCtx = null;            // 用户手势内创建的 AudioContext
 
-  const setMic = (on, title) => {
+  const PH = '输入你的行动：向东 / 打坐修炼 / 与钱掌柜交谈 / 查看背包 / 帮助 …';
+  const setListening = on => {
     mic.classList.toggle('on', on);
-    if (title) mic.title = title;
+    if (meter) meter.classList.toggle('on', on);
+    cmd.placeholder = on ? '正在聆听…（说完停顿自动结束）' : PH;
+  };
+
+  const fail = (msg) => {
+    setListening(false);
+    mic.title = msg;
+    appendTurn({ narration: `（${msg}）` });
+    busy = false;
   };
 
   /* 启动时探测可用引擎 */
   const probe = async () => {
     try {
       const r = await fetch('/api/stt/auth').then(x => x.json());
-      if (r && r.ok && r.url) { engine = 'xfyun'; setMic(false, '语音输入（讯飞听写 · 说中文自动转文字）'); return; }
-    } catch {}
+      if (r && r.ok && r.url) { engine = 'xfyun'; mic.title = '语音输入（讯飞听写 · 说中文自动转文字）'; return; }
+    } catch { /* fallthrough */ }
     if (window.SpeechRecognition || window.webkitSpeechRecognition) {
       engine = 'builtin';
-      setMic(false, '语音输入（浏览器内置 · 说中文自动转文字 · 需联网）');
+      mic.title = '语音输入（浏览器内置 · 说中文自动转文字 · 需联网）';
       return;
     }
     mic.classList.add('hidden');
   };
   probe();
 
-  const fail = (msg) => {
-    setMic(false, msg);
-    appendTurn({ narration: `（${msg}）` });
-    busy = false;
+  /* 波形指示：音量 → 四条小竖条 */
+  let lvlAcc = 0, lvlN = 0;
+  const setLevel = rms => {
+    if (!meter || !meter.classList.contains('on')) return;
+    const v = Math.min(1, rms * 7);
+    for (let i = 0; i < meter.children.length; i++) {
+      const h = Math.max(4, Math.round(v * (0.35 + 0.22 * (i % 2)) * 100));
+      meter.children[i].style.height = h + '%';
+    }
   };
 
   let appIdHint = '';
@@ -1699,19 +1717,22 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
       rec.lang = 'zh-CN';
       rec.continuous = false;
       rec.interimResults = false;
-      rec.onresult = ev => { fill(Array.from(ev.results || []).map(r => r[0].transcript).join('，').trim()); setMic(false); busy = false; };
-      rec.onerror = () => { fail('听音落空：内置识别需联网，可重试或直接打字'); };
-      rec.onend = () => { setMic(false); busy = false; };
+      rec.onresult = ev => {
+        const txt = Array.from(ev.results || []).map(r => r[0].transcript).join('，').trim();
+        cmd.value = (cmd.value ? cmd.value.trimEnd() + '，' : '') + txt;
+        setListening(false); busy = false;
+      };
+      rec.onerror = () => fail('听音落空：内置识别需联网，可重试或直接打字');
+      rec.onend = () => { setListening(false); busy = false; };
     }
     rec.start();
-    setMic(true, '听音中…点击停止');
+    setListening(true);
   };
 
   /* 讯飞 iat：录音（16k PCM）→ 流式帧 → 增量识别（识别文字实时显示在输入框） */
-  const startXfyun = async url => {
-    const cmd = $('cmd');
+  const startXfyun = async (url, ctx) => {
     const preText = cmd.value;
-    let stream = null, audio = null, src = null, node = null, ws = null, timer = null;
+    let stream = null, src = null, node = null, ws = null, timer = null, totalTimer = null;
     let opened = false, done = false;
     let frame = [];               // 累积 Int16 采样
     let finalText = '';
@@ -1744,36 +1765,44 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
       if (opened) sendFrame(2); // 收尾帧：让服务器结算已识别内容（先于 done 置位）
       done = true;
       if (timer) clearInterval(timer);
+      if (totalTimer) clearTimeout(totalTimer);
       try { if (node) { node.onaudioprocess = null; node.disconnect(); } } catch {}
       try { if (src) src.disconnect(); } catch {}
       try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
-      try { if (audio && audio.state !== 'closed') audio.close(); } catch {}
+      try { if (ctx && ctx.state !== 'closed') ctx.close(); liveCtx = null; } catch {}
       setTimeout(() => { try { if (ws) ws.close(); } catch {} }, 400);
       mic.onclick = null;
       busy = false;
-      setMic(false, '语音输入（讯飞听写 · 点击开始说话）');
+      setListening(false);
+      if (!finalText.trim()) {
+        setTimeout(() => appendTurn({ narration: '（未识别到话语——可检查麦克风是否被占用，或靠近一些再说）' }), 200);
+      }
     };
 
     /* 麦克风：失败给出明确提示（不静默） */
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true } });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
     } catch (e) {
       fail('无法使用麦克风（请允许系统/游戏麦克风权限后重试）');
       return;
     }
     try {
-      audio = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      if (audio.state === 'suspended') await audio.resume().catch(() => {});
-      src = audio.createMediaStreamSource(stream);
-      node = audio.createScriptProcessor(4096, 1, 1);
+      if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+      if (ctx.state !== 'running') { fail('录音启动被浏览器限制，请再次点击麦克风重试'); return; }
+      src = ctx.createMediaStreamSource(stream);
+      node = ctx.createScriptProcessor(4096, 1, 1);
       node.onaudioprocess = e => {
         if (done) return;
         const d = e.inputBuffer.getChannelData(0);
+        let sum = 0;
         for (let i = 0; i < d.length; i++) {
           const s = Math.max(-1, Math.min(1, d[i]));
+          sum += s * s;
           frame.push(s < 0 ? s * 0x8000 : s * 0x7FFF);
         }
         if (frame.length >= 640) sendFrame(1); // 40ms=1280B 一帧
+        lvlAcc += Math.sqrt(sum / d.length); lvlN++;
+        if (lvlN >= 4) { setLevel(lvlAcc / lvlN); lvlAcc = 0; lvlN = 0; }
       };
       src.connect(node);
       /* 不连 destination：避免麦克风回放回声 */
@@ -1784,8 +1813,8 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
 
     ws = new WebSocket(url);
     timer = setInterval(() => { if (!done && opened && frame.length >= 640) sendFrame(1); }, 250); // 兜底定时冲刷
-    ws.onopen = () => { opened = true; sendFrame(0); };
-    ws.onmessage = ev => {
+    totalTimer = setTimeout(() => { if (!done) { fillLive(); finish(); } }, 60000); // 总超时60s：防静音/断连时永久卡死
+    ws.onopen = () => { opened = true; sendFrame(0); };    ws.onmessage = ev => {
       try {
         const m = JSON.parse(ev.data);
         if (m.code !== 0) {
@@ -1807,18 +1836,26 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
     ws.onerror = () => { if (!done) { fail('听写连接异常，可重试或直接打字'); finish(); } };
     ws.onclose = () => { if (!done) { fillLive(); finish(); } };
 
-    setMic(true, '听音中…（识别文字实时显示，停顿 2.5 秒自动结束，点击停止）');
+    setListening(true);
+    mic.title = '聆听中…点击停止';
     mic.onclick = () => finish(); // 手动点停：保留已识别文字
   };
 
   mic.addEventListener('click', async () => {
     if (busy) return;
+    /* 用户手势内：预建音频上下文（防 suspended 导致录音无数据） */
+    if (engine === 'xfyun' && !liveCtx) {
+      try { liveCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 }); }
+      catch { liveCtx = null; }
+    }
     busy = true;
-    setMic(true, '正在启动听音…');
+    mic.classList.add('on');
     try {
       if (engine === 'xfyun') {
+        if (!liveCtx) { fail('无法启动录音（浏览器限制），请重试或直接打字'); return; }
+        if (liveCtx.state === 'suspended') await liveCtx.resume().catch(() => {});
         const r = await fetch('/api/stt/auth').then(x => x.json());
-        if (r && r.ok) { appIdHint = r.appId || ''; await startXfyun(r.url); return; }
+        if (r && r.ok) { appIdHint = r.appId || ''; await startXfyun(r.url, liveCtx); return; }
         engine = 'builtin';
       }
       if (engine === 'builtin') { startBuiltin(); return; }

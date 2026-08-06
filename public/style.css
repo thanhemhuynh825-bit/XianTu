@@ -158,19 +158,34 @@ body {
 .btn.ghost:hover { border-color: var(--line); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 
-/* 语音输入按钮 */
+/* 语音输入按钮（精致 SVG 麦克风 + 聆听波形指示） */
 .btn.mic {
   flex-shrink: 0; width: 34px; height: 34px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 15px; line-height: 1;
+  border-radius: 50%;
 }
+.mic-ic { width: 16px; height: 16px; color: var(--gold-dim); transition: color .2s; }
+.btn.mic:hover { border-color: var(--gold); }
+.btn.mic:hover .mic-ic { color: var(--gold-b); }
 .btn.mic.on {
-  border-color: var(--cinnabar); color: #fff; background: rgba(192,82,58,.25);
+  border-color: var(--cinnabar); background: rgba(192,82,58,.25);
   animation: mic-pulse 1.2s ease-in-out infinite;
 }
+.btn.mic.on .mic-ic { color: #fff; }
 @keyframes mic-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(192,82,58,.35); }
   50% { box-shadow: 0 0 0 6px rgba(192,82,58,0); }
+}
+/* 聆听波形：四条音量条（说多大声，跳多高） */
+.voice-meter {
+  display: none; align-items: flex-end; gap: 2px;
+  height: 18px; flex-shrink: 0; padding-bottom: 2px;
+}
+.voice-meter.on { display: inline-flex; }
+.voice-meter i {
+  width: 3px; height: 4px; border-radius: 1px;
+  background: linear-gradient(180deg, #e08a72, var(--cinnabar));
+  transition: height .09s ease;
 }
 
 /* 布局：flex 自适应 + 可拖拽分隔条 */
