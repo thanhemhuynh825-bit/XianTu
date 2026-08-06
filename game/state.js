@@ -163,7 +163,8 @@ function newState(name = '无名散修', traits = {}) {
     enemy: null,    // 战斗状态机：{name, realm, hp, maxHp, mp, atk, def, diff, lever}（战斗中由 GM 更新，快照可见）
     battleLog: [],  // 战斗留痕：[{t, foe, realm, result, lever}]（玩家可回顾"这一仗怎么赢的"）
     fame: 0,        // 声名：侠名/恶名累积（-1000~1000，世界对玩家的评价，影响 NPC 态度与事件）
-    tribulation: null, // 天劫：大境界突破待渡 {stage, turn}（跨大境界突破后次回合须渡劫，GM 演绎，服务器兜底）
+    tribulation: null, // 天劫：大境界突破待渡 {stage, turn}（突破后 GM 可演绎择日渡劫/法宝化解，窗口期后服务器兜底）
+    holdings: [],   // 身外之物：田产/铺面/官职/灵田/洞府等长期产业 [{kind, name, desc, since}]（GM 登记，快照与侧栏展示）
     visited: {},    // 到访记录（地图数据源）：{地点: {area, firstTurn, lastTurn, count}}
     mapPos: { ...MAP_SKELETON }, // 舆图坐标：区域 → [x, y]
     scene: null,   // 当前场景锚点：{npcs, desc, mood}（GM 维护，保证场景连贯）
@@ -261,6 +262,7 @@ function normalizeState(s) {
   s.enemy = s.enemy && s.enemy.name ? s.enemy : null;
   s.fame = Number(s.fame) || 0; // 旧档兼容：声名自动补 0
   s.tribulation = s.tribulation && s.tribulation.stage && LIFESPAN[s.tribulation.stage] !== undefined ? { stage: s.tribulation.stage, turn: s.tribulation.turn } : null;
+  s.holdings = Array.isArray(s.holdings) ? s.holdings.filter(h => h && h.name).slice(-20) : []; // 旧档兼容：身外之物自动补空
   s.visited = s.visited || {};
   s.mapPos = { ...MAP_SKELETON, ...(s.mapPos || {}) };
   if (!Object.keys(s.visited).length && s.location && s.location.name) {
@@ -637,6 +639,29 @@ function applyEffects(s, fx) {
     }
   }
 
+  /* 身外之物：田产/铺面/官职/灵田/洞府等长期产业登记（种田/经商/做官等自由玩法的落地载体） */
+  if (fx.holdings != null) {
+    s.holdings = s.holdings || [];
+    for (const h of Array.isArray(fx.holdings) ? fx.holdings : [fx.holdings]) {
+      if (!h || !h.name) continue;
+      if (h.action === 'remove') {
+        const idx = s.holdings.findIndex(x => x.name === h.name);
+        if (idx >= 0) { const [rm] = s.holdings.splice(idx, 1); events.push({ t: 'quest', text: `身外之物易主：${rm.name}` }); }
+        continue;
+      }
+      const kind = String(h.kind || '产业').slice(0, 10);
+      const old = s.holdings.find(x => x.name === h.name);
+      if (old) {
+        old.desc = String(h.desc || old.desc).slice(0, 120);
+        old.kind = h.kind || old.kind;
+        events.push({ t: 'quest', text: `产业更新：${h.name}` });
+      } else {
+        s.holdings.push({ kind, name: String(h.name).slice(0, 24), desc: String(h.desc || '').slice(0, 120), since: s.turns + 1 });
+        events.push({ t: 'quest', text: `安身立命：${kind}「${h.name}」${h.desc ? '（' + h.desc + '）' : ''}` });
+      }
+    }
+  }
+
   /* 声名：侠名/恶名累积（GM 判定重大善举/恶行时登记，世界会回应） */
   if (fx.reputation != null) {
     const rep = fx.reputation;
@@ -871,10 +896,10 @@ function expireQuests(s) {
   return out;
 }
 
-/* 天劫自动兜底：突破后的次回合（s.turns 已越过 tr.turn）仍未结算时，服务器按天命判定（≥60 成功，否则降境重伤） */
+/* 天劫自动兜底：突破后 GM 有两回合演绎窗口（择日渡劫/法宝化解皆可），之后仍未结算时按天命判定（≥60 成功，否则降境重伤） */
 function autoTribulation(s) {
   const tr = s.tribulation;
-  if (!tr || tr.turn == null || tr.turn > s.turns) return null; // 尚未到兜底窗口（突破后首回合给 GM 演绎机会）
+  if (!tr || tr.turn == null || tr.turn + 2 > s.turns) return null; // 窗口期内留给 GM 演绎
   const r = mulberry32((s.rngSeed + s.turns * 2081) >>> 0)();
   if (Math.round(r * 100) >= 60) {
     s.tribulation = null;
@@ -972,7 +997,7 @@ function extractItemSentence(narration, itemName) {
 
 /* ---------- 回合快照链：每回合存核心状态，支持任意回滚（最近 300 回合） ---------- */
 const TURN_SNAP_MAX = 300;
-const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'pets', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'battleLog', 'visited', 'mapPos', 'fame', 'tribulation'];
+const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'pets', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'battleLog', 'visited', 'mapPos', 'fame', 'tribulation', 'holdings'];
 function snapCore(st) {
   const core = {};
   for (const k of CORE_FIELDS) {

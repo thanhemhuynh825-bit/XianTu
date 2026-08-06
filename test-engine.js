@@ -265,14 +265,38 @@ require('./game/llm').chat = async () => {
   const sT4 = state.newState('劫4');
   sT4.exp = 5000;
   state.applyEffects(sT4, { realm: { stage: '筑基', level: 1 } });
-  sT4.turns = 2; // 突破回合=1，现在第2回合仍挂着
+  sT4.turns = 4; // 突破回合0 → 第4回合开头：已过演绎窗口
   const auto4 = state.autoTribulation(sT4);
-  console.log('[天劫] 自动兜底触发:', !!auto4, '| 已清:', sT4.tribulation === null, '| 结果:', auto4.ok ? '成功' : '失败');
+  console.log('[天劫] 自动兜底触发:', !!auto4, '| 已清:', sT4.tribulation === null, '| 结果:', auto4 ? (auto4.ok ? '成功' : '失败') : '无');
   const sT5 = state.newState('劫5');
   sT5.exp = 5000;
   state.applyEffects(sT5, { realm: { stage: '筑基', level: 1 } });
   sT5.turns = 1; // 同回合：不触发兜底
   console.log('[天劫] 同回合不兜底:', state.autoTribulation(sT5) === null);
+  /* 天劫窗口（自由度：择日渡劫）：突破后第1、2回合开头不兜底，第3回合开头兜底 */
+  const sT6 = state.newState('劫6');
+  sT6.exp = 5000;
+  state.applyEffects(sT6, { realm: { stage: '筑基', level: 1 } }); // 突破回合0 → turn=1
+  sT6.turns = 1; // 突破后第 1 回合开头（窗口内）
+  console.log('[天劫] 窗口内(第1回合)不兜底:', state.autoTribulation(sT6) === null);
+  sT6.turns = 2; // 突破后第 2 回合开头（窗口内）
+  console.log('[天劫] 窗口内(第2回合)不兜底:', state.autoTribulation(sT6) === null);
+  sT6.turns = 3; // 突破后第 3 回合开头 → 兜底
+  const auto6 = state.autoTribulation(sT6);
+  console.log('[天劫] 第3回合兜底:', !!auto6, '| 已清:', sT6.tribulation === null);
+
+  /* 身外之物：登记/更新/移除/快照/旧档补空 */
+  const sH2 = state.newState('家');
+  let evH2 = state.applyEffects(sH2, { holdings: [{ kind: '田产', name: '城外三亩灵田', desc: '灵稻一季，需时令照料' }] });
+  console.log('[家业] 登记:', sH2.holdings.length === 1 && sH2.holdings[0].kind === '田产', '| 事件:', evH2.some(e => /安身立命/.test(e.text)), '| 快照含家业:', gm.buildSnapshot(sH2, null).includes('灵田'));
+  state.applyEffects(sH2, { holdings: [{ name: '城外三亩灵田', desc: '更新：灵稻已抽穗' }] });
+  console.log('[家业] 更新保留kind:', sH2.holdings[0].kind === '田产', '| desc更新:', sH2.holdings[0].desc.includes('抽穗'));
+  evH2 = state.applyEffects(sH2, { holdings: [{ name: '城外三亩灵田', action: 'remove' }] });
+  console.log('[家业] 变卖移除:', sH2.holdings.length === 0, '| 事件:', evH2.some(e => /易主/.test(e.text)));
+  state.applyEffects(sH2, { holdings: [{ kind: '官职', name: '青云镇捕头', desc: '治绩尚浅' }] });
+  console.log('[家业] 官职登记:', sH2.holdings[0].name === '青云镇捕头');
+  const oldH = { name: '老档', realm: { stage: '炼气', level: 1 }, attrs: {} };
+  console.log('[家业] 旧档补空:', Array.isArray(state.normalizeState(oldH).holdings) && state.normalizeState(oldH).holdings.length === 0);
 
   /* P0-4 限时任务：deadline 解析 → 倒计时数据 → 过期移出 */
   const sD = state.newState('限');
@@ -288,5 +312,5 @@ require('./game/llm').chat = async () => {
   const expired = state.expireQuests(sD);
   console.log('[限时] 全部过期移出:', expired.length === 2, '| 任务清空:', sD.quests.length === 0, '| 大事件:', sD.chronicle.some(c => /错失良机/.test(c.text)));
 
-  console.log('\n引擎 v14 全部通过 ✓');
+  console.log('\n引擎 v15 全部通过 ✓');
 })().catch(e => { console.error('测试失败:', e); process.exit(1); });

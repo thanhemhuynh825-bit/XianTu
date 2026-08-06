@@ -319,6 +319,12 @@ function renderState(st) {
     ? st.hooks.map(h => `<div class="quest-row" data-tip="${esc(`于第 ${h.turn} 回合结下。了结它，或让时间给它一个交代。`)}"><span class="q-t" style="color:var(--gold)">✧ ${esc(h.text)}</span><span class="q-d">第${h.turn}回</span></div>`).join('')
     : '<div class="empty">身无挂碍</div>';
 
+  /* 身外之物（田产/铺面/官职/灵田/洞府……自由玩法的家业载体） */
+  const HOLD_KIND = { 田产: 'var(--jade)', 铺面: 'var(--gold)', 官职: 'var(--cinnabar)', 灵田: 'var(--jade)', 洞府: 'var(--violet)', 矿脉: '#d9a96b' };
+  $('c-holdings').innerHTML = (st.holdings && st.holdings.length)
+    ? st.holdings.map(h => `<div class="quest-row" data-tip="${esc(`${h.desc || '你在苍玄界安身立命的产业。'}\n于第 ${h.since} 回合置办。`)}"><span class="q-t" style="color:${HOLD_KIND[h.kind] || 'var(--gold)'}">◈ ${esc(h.name)}</span><span class="q-d">${esc(h.kind)}</span></div>`).join('')
+    : '<div class="empty">尚无产业，白手起家</div>';
+
   /* 灵宠栏（收服/结契/孵化后由 GM 登记，自动展示；旧档无灵宠显示空态） */
   const pets = Object.values(st.pets || {});
   $('pets-count').textContent = pets.length ? `${pets.length} 只` : '';
