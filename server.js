@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const GAME_VERSION = '1.11.1';
+const GAME_VERSION = '1.12.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -32,7 +32,7 @@ const character = loadGame('character');
 const llm = loadGame('llm');
 const { SYSTEM_PROMPT, buildMessages, buildOpeningPrompt, revivePrompt, reincarnatePrompt, GM_RULES_VERSION } = gm;
 const { QA_SYSTEM, QC_SYSTEM, buildQCFacts } = gm;
-const { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, fateRolls, applyFuses, settleIdle, formatDate, IDLE_MAX_MIN, extractMoveLocations, inferTimeFx, fmtHours, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo } = state;
+const { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, fateRolls, applyFuses, settleIdle, formatDate, IDLE_MAX_MIN, extractMoveLocations, inferTimeFx, fmtHours, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo, expireQuests, autoTribulation } = state;
 const { rollTraits, ORIGINS, PERSONALITIES, TALENTS, ORIGIN_STARTS } = character;
 const { loadConfig: loadCfg, chat, GMError } = llm;
 
@@ -256,6 +256,22 @@ async function gmTurn(slot, st, command, opts = {}) {
   /* 每 10 回合触发一次记忆归档提醒（GM 在本回合 effects.memory 中归档剧情摘要） */
   if (!opts.skipHistory && (st.turns + 1) % 10 === 0 && st.turns > 0) {
     command = `【系统】今逢第${st.turns + 1}回合，正是记忆归档之时：请在 effects.memory 中写入 1~3 条（每条 60 字内）最近 10 回合值得永远记住的剧情摘要（NPC 关键原话、恩怨因果、伏笔走向、势力关系），此后这些内容将作为你叙事的事实依据。\n${command}`;
+  }
+  /* 限时任务过期检查：时间已到的任务移出列表并载入大事件（世界言而有信地收尾） */
+  if (!opts.skipHistory) {
+    const expired = expireQuests(st);
+    if (expired.length) {
+      warnings.push(`限时任务已过期：${expired.map(q => q.title).join('、')}（按叙事收尾：NPC 已离开/宝物被夺/线索断绝，并在叙事中自然交代结果）`);
+      for (const q of expired) events.push({ t: 'quest', text: `错失良机：${q.title}（限时已过，世界已另做安排）` });
+    }
+  }
+  /* 天劫兜底：GM 连续两回合未结算渡劫时，服务器按天命判定（≥60 成功，否则降境重伤） */
+  if (!opts.skipHistory && st.tribulation) {
+    const auto = autoTribulation(st);
+    if (auto) {
+      warnings.push(`天劫自动判定：${auto.note}`);
+      events.push({ t: 'system', text: `⚡ ${auto.note}` });
+    }
   }
   const rolls = opts.noRolls ? null : fateRolls(st);
   const messages = buildMessages(st, command, rolls);

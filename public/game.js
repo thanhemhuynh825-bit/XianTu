@@ -20,9 +20,9 @@ const STATIC_CHIPS = ['查看四周', '打坐修炼', '闭关修炼', '查看背
 const STAT_TIPS = {
   attack: '攻击：近身杀伤力。战斗中你的刀剑能造成多大伤害，装备与境界是主要来源。',
   defense: '防御：抵御伤害。皮糙肉厚者挨得住打，衣甲与护体功法可提升。',
-  agility: '身法：决定先手与闪避。身法高者先出招、躲得快，逃生也靠它。',
-  insight: '悟性：修炼与参悟的速度。悟性高者打坐更快、参悟功法更容易。',
-  luck: '福缘：机缘、奇遇与掉落。每回合的天命骰受福缘修正，福缘高则时来运转。',
+  agility: '身法：决定先手与闪避。身法高者先出招、躲得快——脱身/逃跑时有效凶险 −身法×2，逃生大业全靠它。',
+  insight: '悟性：决定修炼快慢。每点 +2% 修炼效率（打坐/闭关收益上浮），悟性高者顿悟机缘更多（机缘骰 +悟性/2）。',
+  luck: '福缘：天命眷顾程度。每 3 点修正 1 点机缘骰，福缘高者奇遇更密、厄运更远。',
   spirit_stones: '灵石：修真界硬通货。购买丹药法宝、支付闭关洞府、悬赏报酬都用它。',
   gold: '银两：凡间货币。凡人集市上买干粮杂货、住店吃饭用的。',
   lifespan: '寿元：你的寿命，耗尽即坐化而终。突破境界可大幅延寿——时间才是修行最大的敌人。',
@@ -222,6 +222,18 @@ function renderState(st) {
   $('c-avatar').src = 'avatars/' + (st.gender === 'female' ? 'female' : 'male') + '.webp';
   $('c-name').textContent = st.name + (st.reincarnations ? ` · 第${st.reincarnations + 1}世` : '');
   $('c-meta').textContent = `${stageLabel(st.realm)} · ${st.roots.quality} · 年${Math.round(a.age)}岁 · 寿元${Math.round(a.lifespan)}年`;
+  /* 声名（侠名/恶名，世界对玩家的评价）+ 天劫将至徽标 */
+  const fam = Math.round(st.fame || 0);
+  const famEl = $('c-fame');
+  if (fam === 0 && !st.tribulation) { famEl.innerHTML = ''; }
+  else {
+    const famTip = fam === 0
+      ? '声名不显：江湖尚未记住你。行大善积侠名、犯大恶落恶名，世界会回应你的名声。'
+      : fam > 0
+        ? `侠名 +${fam}：江湖对你的赞誉。侠名高者正道示好、坊市让利、贵人相助；叙事会不时提及你的风评。`
+        : `恶名 ${fam}：江湖对你的畏惧与唾弃。恶名高者人人忌惮、或被悬赏通缉、招致正道追杀。`;
+    famEl.innerHTML = `<span class="fame-chip ${fam > 0 ? 'fame-good' : fam < 0 ? 'fame-bad' : ''}" data-tip="${esc(famTip)}">${fam > 0 ? '✦ 侠名 +' + fam : fam < 0 ? '☠ 恶名 ' + fam : '声名不显'}</span>${st.tribulation ? `<span class="trib-chip" data-tip="${esc('天劫将至：' + st.tribulation.stage + '道基将成，九天雷意已在酝酿。下一回合直面雷劫——法宝、丹药、功法、灵宠皆可为渡劫出力，成败看天命与准备。')}">⚡ 天劫将至</span>` : ''}`;
+  }
   $('c-roots').textContent = `灵根：${st.roots.list.join('、')}`;
   /* 性格与禀赋（角色底色，出身不常驻展示） */
   $('c-dise').innerHTML = [
@@ -281,12 +293,19 @@ function renderState(st) {
   $('c-area').textContent = st.location.area;
   $('c-explored').innerHTML = (st.explored || []).map(a => `<span class="tag">${esc(a)}</span>`).join('');
 
-  /* 任务（重要剧情/奇遇以任务展示，完成即清除） */
+  /* 任务（重要剧情/奇遇以任务展示，完成即清除；限时任务显示倒计时） */
   const KIND_CLS = { 主线: 'kind-main', 奇遇: 'kind-fate', 委托: 'kind-quest', 悬赏: 'kind-bounty', 恩怨: 'kind-grudge', 秘闻: 'kind-secret' };
   $('c-quests').innerHTML = (st.quests && st.quests.length)
     ? st.quests.map(q => {
       const kc = KIND_CLS[q.kind] || 'kind-quest';
-      return `<div class="quest-row ${kc}"><span class="q-kind">${esc(q.kind || '委托')}</span><span class="q-t">${esc(q.title)}</span>${q.desc ? `<span class="q-d">${esc(q.desc)}</span>` : ''}</div>`;
+      let dl = '';
+      if (q.deadlineH != null) {
+        const remainH = q.deadlineH - st.timeH;
+        const d = Math.floor(remainH / 24), s = Math.floor((remainH % 24) / 2);
+        const warn = remainH <= 24 ? 'dl-urgent' : '';
+        dl = `<span class="q-dl ${warn}" data-tip="${esc(`限时任务：${q.deadline}内完成，逾期即失。世界言而有信——错过就是错过。`)}">⏳ ${d > 0 ? d + '日' : ''}${s > 0 ? s + '时辰' : remainH > 0 ? '将尽' : '已过'}</span>`;
+      }
+      return `<div class="quest-row ${kc}"><span class="q-kind">${esc(q.kind || '委托')}</span><span class="q-t">${esc(q.title)}</span>${q.desc ? `<span class="q-d">${esc(q.desc)}</span>` : ''}${dl}</div>`;
     }).join('')
     : '<div class="empty">暂无因果缠身</div>';
 

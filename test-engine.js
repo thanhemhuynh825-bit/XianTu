@@ -223,5 +223,70 @@ require('./game/llm').chat = async () => {
   evJ = state.applyEffects(sJ, { enemy: { hp: 0 } });
   console.log('[判定] 结束清除:', sJ.enemy === null, '| 留痕:', sJ.battleLog.length === 1, '| 留痕含杠杆:', sJ.battleLog[0].lever === 12);
 
-  console.log('\n引擎 v13 全部通过 ✓');
+  /* P0-1 属性回流：悟性 → 挂机修炼效率 */
+  const sI = state.newState('悟');
+  sI.attrs.insight = 10;
+  sI.realm = { stage: '炼气', level: 1 };
+  sI.idle = { startAt: Date.now() - 30 * 60000, durationMin: 30 };
+  const irI = state.settleIdle(sI, Date.now());
+  const sI0 = state.newState('悟0');
+  sI0.attrs.insight = 0;
+  sI0.realm = { stage: '炼气', level: 1 };
+  sI0.idle = { startAt: Date.now() - 30 * 60000, durationMin: 30 };
+  const irI0 = state.settleIdle(sI0, Date.now());
+  console.log('[回流] 悟性10修炼+20%:', irI.exp === Math.floor(30 * 1.2 * 1.2), '| 悟性0无加成:', irI0.exp === Math.floor(30 * 1.2), '| note含加成:', irI.note.includes('悟性加成'));
+
+  /* P0-2 声名：累积/上限/快照/旧档补0 */
+  const sF = state.newState('名');
+  let evF = state.applyEffects(sF, { reputation: { value: 30, tag: '侠名' } });
+  console.log('[声名] 侠名+30:', sF.fame === 30, '| 事件:', evF.some(e => /侠名/.test(e.text)), '| 快照含声名:', gm.buildSnapshot(sF, null).includes('声名'));
+  state.applyEffects(sF, { reputation: { value: -1500, tag: '恶名' } });
+  console.log('[声名] 下限钳制:', sF.fame === -1000);
+  state.applyEffects(sF, { reputation: 200 });
+  console.log('[声名] 简写value:', sF.fame === -800);
+  const oldF = { name: '老档', realm: { stage: '炼气', level: 1 }, attrs: {} };
+  console.log('[声名] 旧档补0:', state.normalizeState(oldF).fame === 0);
+
+  /* P0-3 天劫：跨大境界突破挂起 → GM 结算 success/fail → 自动兜底 */
+  const sT = state.newState('劫');
+  sT.exp = 5000; // 筑基所需 1000 已满足
+  let evT = state.applyEffects(sT, { realm: { stage: '筑基', level: 1 } });
+  console.log('[天劫] 跨境挂起:', sT.tribulation && sT.tribulation.stage === '筑基', '| 事件含天劫:', evT.some(e => /天劫/.test(e.text)), '| 境界:', gm.stageLabel(sT.realm));
+  const sT2 = state.newState('劫2');
+  sT2.exp = 5000;
+  state.applyEffects(sT2, { realm: { stage: '筑基', level: 1 } });
+  evT = state.applyEffects(sT2, { tribulation: { result: 'success' } });
+  console.log('[天劫] 成功清除:', sT2.tribulation === null, '| 大事件:', sT2.chronicle.some(c => /渡劫成功/.test(c.text)));
+  const sT3 = state.newState('劫3');
+  sT3.exp = 5000;
+  state.applyEffects(sT3, { realm: { stage: '筑基', level: 1 } });
+  evT = state.applyEffects(sT3, { tribulation: { result: 'fail' } });
+  console.log('[天劫] 失败降境:', gm.stageLabel(sT3.realm).includes('炼气'), '| 重伤:', sT3.attrs.hp === Math.round(sT3.attrs.max_hp * 0.4), '| 大事件:', sT3.chronicle.some(c => /渡劫失败/.test(c.text)));
+  const sT4 = state.newState('劫4');
+  sT4.exp = 5000;
+  state.applyEffects(sT4, { realm: { stage: '筑基', level: 1 } });
+  sT4.turns = 2; // 突破回合=1，现在第2回合仍挂着
+  const auto4 = state.autoTribulation(sT4);
+  console.log('[天劫] 自动兜底触发:', !!auto4, '| 已清:', sT4.tribulation === null, '| 结果:', auto4.ok ? '成功' : '失败');
+  const sT5 = state.newState('劫5');
+  sT5.exp = 5000;
+  state.applyEffects(sT5, { realm: { stage: '筑基', level: 1 } });
+  sT5.turns = 1; // 同回合：不触发兜底
+  console.log('[天劫] 同回合不兜底:', state.autoTribulation(sT5) === null);
+
+  /* P0-4 限时任务：deadline 解析 → 倒计时数据 → 过期移出 */
+  const sD = state.newState('限');
+  sD.timeH = 100;
+  let evD = state.applyEffects(sD, { quests: [{ title: '三日内护送玉简', kind: '委托', deadline: '3日' }] });
+  console.log('[限时] 解析3日:', sD.quests[0].deadlineH === 100 + 72, '| 事件含限时:', evD.some(e => /限时/.test(e.text)));
+  state.applyEffects(sD, { quests: [{ title: '今夜盗取令牌', deadline: '今夜' }] });
+  console.log('[限时] 解析今夜:', sD.quests[1].deadlineH === 100 + 8);
+  console.log('[限时] 中文数解析:', (() => { const s = state.newState('x'); state.applyEffects(s, { quests: [{ title: '五日之约', deadline: '五日' }] }); return s.quests[0].deadlineH === s.timeH + 120; })());
+  const snapD = gm.buildSnapshot(sD, null);
+  console.log('[限时] 过期前快照含期限:', snapD.includes('限时'));
+  sD.timeH = 100 + 72 + 1; // 超时
+  const expired = state.expireQuests(sD);
+  console.log('[限时] 全部过期移出:', expired.length === 2, '| 任务清空:', sD.quests.length === 0, '| 大事件:', sD.chronicle.some(c => /错失良机/.test(c.text)));
+
+  console.log('\n引擎 v14 全部通过 ✓');
 })().catch(e => { console.error('测试失败:', e); process.exit(1); });

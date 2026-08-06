@@ -18,6 +18,7 @@ function autoMapPos() {
   return [Math.round(450 + 200 * Math.cos(angle)), Math.round(260 + 150 * Math.sin(angle))];
 }
 const STAGE_LEVELS = { 炼气: 12, 筑基: 4, 金丹: 4, 元婴: 4, 化神: 4, 炼虚: 4, 合体: 4, 大乘: 4, 渡劫: 4 };
+const STAGE_ORDER = ['炼气', '筑基', '金丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
 function stageLabel(s) {
   if (!s) return '未知';
   if (s.stage === '炼气') return `炼气${['一','二','三','四','五','六','七','八','九','十','十一','十二'][s.level - 1] || s.level}层`;
@@ -161,6 +162,8 @@ function newState(name = '无名散修', traits = {}) {
     conditions: [], // 状态：中毒/内伤/煞气等 [{name, desc, turns, hpPerTurn, mpPerTurn}]，服务器每回合自动结算
     enemy: null,    // 战斗状态机：{name, realm, hp, maxHp, mp, atk, def, diff, lever}（战斗中由 GM 更新，快照可见）
     battleLog: [],  // 战斗留痕：[{t, foe, realm, result, lever}]（玩家可回顾"这一仗怎么赢的"）
+    fame: 0,        // 声名：侠名/恶名累积（-1000~1000，世界对玩家的评价，影响 NPC 态度与事件）
+    tribulation: null, // 天劫：大境界突破待渡 {stage, turn}（跨大境界突破后次回合须渡劫，GM 演绎，服务器兜底）
     visited: {},    // 到访记录（地图数据源）：{地点: {area, firstTurn, lastTurn, count}}
     mapPos: { ...MAP_SKELETON }, // 舆图坐标：区域 → [x, y]
     scene: null,   // 当前场景锚点：{npcs, desc, mood}（GM 维护，保证场景连贯）
@@ -256,6 +259,8 @@ function normalizeState(s) {
   s.battleLog = Array.isArray(s.battleLog) ? s.battleLog.slice(-30) : [];
   s.conditions = Array.isArray(s.conditions) ? s.conditions.filter(c => c && c.name && (c.turns || 0) > 0).slice(-10) : [];
   s.enemy = s.enemy && s.enemy.name ? s.enemy : null;
+  s.fame = Number(s.fame) || 0; // 旧档兼容：声名自动补 0
+  s.tribulation = s.tribulation && s.tribulation.stage && LIFESPAN[s.tribulation.stage] !== undefined ? { stage: s.tribulation.stage, turn: s.tribulation.turn } : null;
   s.visited = s.visited || {};
   s.mapPos = { ...MAP_SKELETON, ...(s.mapPos || {}) };
   if (!Object.keys(s.visited).length && s.location && s.location.name) {
@@ -358,6 +363,7 @@ function applyEffects(s, fx) {
     const level = Math.max(1, num(fx.realm.level) || 1);
     const need = expNeed(s); // 当前境界每小层所需修为
     const before = realmText(s);
+    const beforeStage = s.realm.stage;
     const isSameStage = stage === s.realm.stage;
     if (!isSameStage && s.exp < need) {
       events.push({ t: 'system', text: `突破未果：修为不足（${Math.floor(s.exp)}/${need}），契机稍纵即逝` });
@@ -370,6 +376,11 @@ function applyEffects(s, fx) {
       if (LIFESPAN[stage] > a.lifespan) a.lifespan = LIFESPAN[stage];
       s.exp = 0; // 突破消耗全部修为，从零再修
       events.push({ t: 'realm', text: `突破！${realmText(s)}` });
+      /* 跨大境界：天劫将至（次回合须渡劫；GM 可用 effects.tribulation 当回合结算或次回合演绎） */
+      if (stage !== beforeStage && STAGE_ORDER.indexOf(stage) > 0) {
+        s.tribulation = { stage, turn: s.turns + 1 };
+        events.push({ t: 'system', text: `⚡ 天劫将至：${stage}道基将成，九天雷意已在酝酿——下一回合直面雷劫` });
+      }
     }
   }
 
@@ -427,7 +438,7 @@ function applyEffects(s, fx) {
     }
   }
 
-  /* 任务：重要剧情/奇遇以任务形式展示；完成即从列表清除，载入大事件表 */
+  /* 任务：重要剧情/奇遇以任务形式展示；完成即从列表清除，载入大事件表；可带 deadline（限时抉择） */
   if (fx.quests) {
     s.chronicle = s.chronicle || [];
     for (const q of asArray(fx.quests)) {
@@ -442,14 +453,16 @@ function applyEffects(s, fx) {
         } else {
           exist.desc = q.desc || exist.desc;
           exist.kind = q.kind || exist.kind || '委托';
+          if (q.deadline != null) { const dh = deadlineHours(q.deadline); if (dh) { exist.deadline = String(q.deadline); exist.deadlineH = s.timeH + dh; } }
         }
       } else if (q.status === 'done') {
         // GM 直接宣告完成：不占列表，直接入大事件
         s.chronicle.push({ t: s.turns + 1, text: `✓ 任务达成：${q.title}${q.desc ? `（${q.desc}）` : ''}`, kind: 'quest' });
         events.push({ t: 'quest', text: `任务达成：${q.title} · 已载入大事件` });
       } else {
-        s.quests.push({ title: q.title, desc: q.desc || '', status: 'active', kind });
-        events.push({ t: 'quest', text: `【${kind}】新任务：${q.title}` });
+        const dh = q.deadline != null ? deadlineHours(q.deadline) : null;
+        s.quests.push({ title: q.title, desc: q.desc || '', status: 'active', kind, deadline: dh ? String(q.deadline) : undefined, deadlineH: dh ? s.timeH + dh : undefined });
+        events.push({ t: 'quest', text: `【${kind}】新任务：${q.title}${dh ? `（限时：${q.deadline}）` : ''}` });
       }
     }
     if (s.chronicle.length > 300) s.chronicle = s.chronicle.slice(-300);
@@ -624,6 +637,35 @@ function applyEffects(s, fx) {
     }
   }
 
+  /* 声名：侠名/恶名累积（GM 判定重大善举/恶行时登记，世界会回应） */
+  if (fx.reputation != null) {
+    const rep = fx.reputation;
+    const val = Math.round(Number(rep && rep.value != null ? rep.value : rep) || 0);
+    if (val !== 0) {
+      s.fame = Math.max(-1000, Math.min(1000, s.fame + val));
+      const tag = (rep && rep.tag) || (val > 0 ? '侠名' : '恶名');
+      events.push({ t: 'quest', text: `【${tag}】${val > 0 ? '+' : ''}${val}（声名 ${s.fame}）` });
+    }
+  }
+
+  /* 天劫结算：GM 演绎渡劫后写结果（success/fail/survive）；不写则服务器下回合兜底 */
+  if (fx.tribulation != null) {
+    const tr = fx.tribulation;
+    const stageName = (s.tribulation && s.tribulation.stage) || '';
+    if (tr.result === 'success') {
+      s.tribulation = null;
+      s.chronicle.push({ t: s.turns + 1, text: `⚡ 渡劫成功：${stageName}道基铸成，雷劫淬体`, kind: 'realm' });
+      events.push({ t: 'realm', text: `渡劫成功：${stageName}道基铸成，雷劫淬体` });
+    } else if (tr.result === 'survive') {
+      s.tribulation = null;
+      s.attrs.hp = Math.max(1, Math.round(s.attrs.max_hp * 0.5));
+      s.chronicle.push({ t: s.turns + 1, text: `⚡ 渡劫惨胜：${stageName}道基勉强铸成，气血大损`, kind: 'realm' });
+      events.push({ t: 'realm', text: `渡劫惨胜：${stageName}道基勉强铸成，气血大损` });
+    } else if (tr.result === 'fail') {
+      tribFall(s, `渡劫失败：天雷贯体，境界跌落`, events);
+    }
+  }
+
   /* 未了之事：伏笔/恩怨/承诺的登记与回收 */
   if (fx.hooks != null) {
     s.hooks = s.hooks || [];
@@ -766,17 +808,82 @@ const IDLE_RATE = { 炼气: 1.2, 筑基: 4, 金丹: 12, 元婴: 40, 化神: 120,
 const IDLE_CAP_MIN = { 炼气: 120, 筑基: 240, 金丹: 480, 元婴: 960, 化神: 1440, 炼虚: 2400, 合体: 4800, 大乘: 7200 }; // 有效挂机时长上限
 const IDLE_MAX_MIN = 7 * 24 * 60; // 单次闭关最长 7 天真实时间
 
-/* 结算挂机（幂等）：返回 {exp, hours, note} 或 null；已结算则清空 st.idle */
+/* 结算挂机（幂等）：返回 {exp, hours, note} 或 null；已结算则清空 st.idle；悟性每点 +2% 修炼效率 */
 function settleIdle(st, now = Date.now()) {
   if (!st || !st.idle) return null;
   const elapsedMin = (now - st.idle.startAt) / 60000;
   const durMin = st.idle.durationMin || 0;
   const capMin = IDLE_CAP_MIN[st.realm.stage] || 120;
   const effMin = Math.max(0, Math.min(elapsedMin, durMin, capMin));
-  const exp = Math.floor(effMin * (IDLE_RATE[st.realm.stage] || 1.2));
+  const insightBonus = 1 + (st.attrs.insight || 0) * 0.02; // 属性回流：悟性 → 修炼效率
+  const exp = Math.floor(effMin * (IDLE_RATE[st.realm.stage] || 1.2) * insightBonus);
   const gameHours = Math.min(effMin * 2, durMin * 2, 365 * 24); // 1分钟=2游戏小时，单次最多流逝一年
   st.idle = null;
-  return { exp, hours: gameHours, note: `你自闭关中苏醒：修为 +${exp}，时光已过 ${fmtHours(gameHours)}` };
+  const bonusNote = insightBonus > 1.01 ? `（悟性加成 ${Math.round((insightBonus - 1) * 100)}%）` : '';
+  return { exp, hours: gameHours, note: `你自闭关中苏醒：修为 +${exp}${bonusNote}，时光已过 ${fmtHours(gameHours)}` };
+}
+
+/* ---------- 声名/天劫/限时任务辅助 ---------- */
+
+/* 限时任务的 deadline 文字 → 游戏小时数 */
+const CN_NUM = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+function deadlineHours(dl) {
+  if (dl == null) return null;
+  const t = String(dl).trim();
+  let m = t.match(/^(\d+|[\u4e00-\u9fa5])(日|天)$/);
+  if (m) return (CN_NUM[m[1]] || parseInt(m[1], 10) || 1) * 24;
+  m = t.match(/^(\d+|[\u4e00-\u9fa5])时辰$/);
+  if (m) return CN_NUM[m[1]] || parseInt(m[1], 10) || 1;
+  if (/明日|明天/.test(t)) return 24;
+  if (/今夜|今晚|天亮前/.test(t)) return 8;
+  if (/半月/.test(t)) return 15 * 24;
+  if (/一月|一个月/.test(t)) return 30 * 24;
+  if (/子时前/.test(t)) return 2;
+  return null;
+}
+
+/* 天劫失败：境界跌落（炼气跌 3 层，其余回上一大境界）+ 重伤 */
+function tribFall(st, note, events) {
+  const idx = STAGE_ORDER.indexOf(st.realm.stage);
+  const from = realmText(st);
+  if (idx > 0) {
+    st.realm = { stage: STAGE_ORDER[idx - 1], level: STAGE_ORDER[idx - 1] === '炼气' ? Math.max(1, st.realm.level - 3) : 1 };
+  } else {
+    st.realm = { stage: st.realm.stage, level: Math.max(1, st.realm.level - 3) };
+  }
+  st.attrs.hp = Math.max(1, Math.round(st.attrs.max_hp * 0.4));
+  st.tribulation = null;
+  st.chronicle.push({ t: st.turns + 1, text: `⚡ ${note}（${from} → ${realmText(st)}）`, kind: 'realm' });
+  if (events) events.push({ t: 'system', text: `${note}：跌至${realmText(st)}，气血仅存 ${st.attrs.hp}` });
+}
+
+/* 限时任务过期检查（每回合开始调用）：超时任务移出列表，入大事件，返回过期列表 */
+function expireQuests(s) {
+  const out = [];
+  if (!Array.isArray(s.quests)) return out;
+  for (const q of [...s.quests]) {
+    if (q.deadlineH == null || (q.deadlineH && s.timeH <= q.deadlineH)) continue;
+    s.quests = s.quests.filter(x => x !== q);
+    s.chronicle = s.chronicle || [];
+    s.chronicle.push({ t: s.turns, text: `✗ 错失良机：${q.title}（限时 ${q.deadline} 已过，世界已另做安排）`, kind: 'quest' });
+    out.push(q);
+  }
+  return out;
+}
+
+/* 天劫自动兜底：GM 连续两回合未写渡劫结果时，服务器按天命判定（≥60 成功，否则降境重伤） */
+function autoTribulation(s) {
+  const tr = s.tribulation;
+  if (!tr || tr.turn == null || tr.turn >= s.turns) return null;
+  const r = mulberry32((s.rngSeed + s.turns * 2081) >>> 0)();
+  if (Math.round(r * 100) >= 60) {
+    s.tribulation = null;
+    s.chronicle.push({ t: s.turns, text: `⚡ 渡劫成功（天意）：${tr.stage}道基稳固`, kind: 'realm' });
+    return { ok: true, note: `天雷散去，${tr.stage}道基稳固（天命判定）` };
+  }
+  const evs = [];
+  tribFall(s, `渡劫失败：天雷贯体`, evs);
+  return { ok: false, note: `天雷贯体，渡劫失败：境界跌落，身受重伤（${realmText(s)}）` };
 }
 
 /* ---------- 位置与时间：服务器的世界一致性守卫 ---------- */
@@ -865,7 +972,7 @@ function extractItemSentence(narration, itemName) {
 
 /* ---------- 回合快照链：每回合存核心状态，支持任意回滚（最近 300 回合） ---------- */
 const TURN_SNAP_MAX = 300;
-const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'pets', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'battleLog', 'visited', 'mapPos'];
+const CORE_FIELDS = ['name', 'gender', 'origin', 'personality', 'talent', 'realm', 'roots', 'attrs', 'exp', 'spirit_stones', 'gold', 'techniques', 'equipment', 'inventory', 'location', 'explored', 'items', 'itemSeen', 'npcs', 'npcSeen', 'pets', 'quests', 'timeH', 'idle', 'givenName', 'reincarnations', 'dead', 'deathReason', 'world', 'scene', 'memory', 'hooks', 'quotes', 'beats', 'news', 'conditions', 'enemy', 'battleLog', 'visited', 'mapPos', 'fame', 'tribulation'];
 function snapCore(st) {
   const core = {};
   for (const k of CORE_FIELDS) {
@@ -899,4 +1006,4 @@ function safeView(s) {
   return { ...rest, historyCount: history.length };
 }
 
-module.exports = { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, asArray, fateRolls, applyFuses, formatDate, fmtHours, parseTimeFx, settleIdle, IDLE_MAX_MIN, stageLabel, extractMoveLocations, inferTimeFx, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo };
+module.exports = { newState, normalizeState, applyEffects, revive, reincarnate, expNeed, realmText, safeView, asArray, fateRolls, applyFuses, formatDate, fmtHours, parseTimeFx, settleIdle, IDLE_MAX_MIN, stageLabel, extractMoveLocations, inferTimeFx, getShichen, extractQuotes, extractConsumes, generateName, extractItemSentence, parseItemRefs, pushTurnSnap, rollbackTo, deadlineHours, expireQuests, autoTribulation };
