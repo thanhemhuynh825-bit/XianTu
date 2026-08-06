@@ -1804,10 +1804,11 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
       src = ctx.createMediaStreamSource(stream);
       node = ctx.createScriptProcessor(4096, 1, 1);
       /* 采样率自适应：ctx.sampleRate 可能不是 16000（部分设备忽略 AudioContext 采样率选项），
-         必须手动重采样到 16k 再发送，否则讯飞报 10008（音频数据格式错误） */
+         必须手动重采样到 16k 再发送，否则讯飞报 10008 或识别为空（时间轴错乱）。
+         正确实现：输入计数 / 比率 = 应输出数，逐样本补足（48k→16k 每 3 个输入输出 1 个） */
       const inRate = ctx.sampleRate || 48000;
       const ratio = inRate / 16000;
-      let acc = 0;
+      let inCnt = 0, outCnt = 0;
       node.onaudioprocess = e => {
         if (done) return;
         const d = e.inputBuffer.getChannelData(0);
@@ -1815,9 +1816,10 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
         for (let i = 0; i < d.length; i++) {
           const s = Math.max(-1, Math.min(1, d[i]));
           sum += s * s;
-          acc += ratio;
-          while (acc >= 1) {
-            acc -= 1;
+          inCnt++;
+          const target = Math.floor(inCnt / ratio);
+          while (outCnt < target) {
+            outCnt++;
             frame.push(s < 0 ? s * 0x8000 : s * 0x7FFF);
           }
         }
@@ -1826,7 +1828,12 @@ $('btn-send').addEventListener('click', () => send($('cmd').value) && ($('cmd').
         if (lvlN >= 4) { setLevel(lvlAcc / lvlN); lvlAcc = 0; lvlN = 0; }
       };
       src.connect(node);
-      /* 不连 destination：避免麦克风回放回声 */
+      /* ScriptProcessor 必须连入 destination 链才会被 Chromium 处理（否则 onaudioprocess 永不触发）。
+         用零音量增益节点承接：既保证处理发生，又不会把麦克风声音回放到扬声器（防回声） */
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      node.connect(mute);
+      mute.connect(ctx.destination);
     } catch (e) {
       fail('录音初始化失败（可重试或直接打字）');
       return;
