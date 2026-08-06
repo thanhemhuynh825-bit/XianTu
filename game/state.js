@@ -608,6 +608,7 @@ function applyEffects(s, fx) {
         desc: String(p.desc || (old && old.desc) || '').slice(0, 200),
         firstTurn: old ? old.firstTurn : s.turns + 1,
         turns: old ? [...(old.turns || []).slice(-49), s.turns + 1] : [s.turns + 1],
+        avatar: old ? old.avatar : 'pending', // 人物小卡：pending=待生成/done=已生成/fail=生成失败
       };
       /* 修为成长轨迹：power 变化时记录 */
       if (old && p.power && old.power !== p.power) {

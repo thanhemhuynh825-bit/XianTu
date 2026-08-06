@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const GAME_VERSION = '1.12.4';
+const GAME_VERSION = '1.13.0';
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const SAVES = process.env.XMUD_DATA_DIR || path.join(ROOT, 'saves'); // 桌面版可重定向到可写目录
@@ -460,6 +460,10 @@ async function gmTurn(slot, st, command, opts = {}) {
   });
   if (warnings.length) log(`[slot${slot}] ⚠ 回合#${st.turns} 保险丝: ${warnings.join('；')}`);
   log(`[slot${slot}] 回合#${st.turns} 指令: ${command.slice(0, 40)} | 事件${events.length}条 | 骰 ${rolls ? `${rolls.fate}/${rolls.danger}/${rolls.chance}` : '-'}`);
+  /* 人物小卡：新登场 NPC 异步生成画像（不阻塞回合响应） */
+  if (!opts.skipHistory && Object.values(st.npcs || {}).some(p => p && p.avatar === 'pending')) {
+    genNpcFaces(slot, st).catch(e => log(`[slot${slot}] 画像任务异常: ${e.message}`));
+  }
   return {
     ok: true,
     title: typeof json.title === 'string' ? json.title : null,
@@ -515,6 +519,69 @@ function sttAuthUrl() {
   return `wss://${host}/v2/iat?authorization=${encodeURIComponent(authorization)}&date=${encodeURIComponent(date)}&host=${host}`;
 }
 
+/* ---------- 豆包（火山方舟 Seedream）人物小卡生图 ---------- */
+const ARK_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
+const ARK_MODEL = 'doubao-seedream-4-0-250828';
+const FACE_STYLE = '中国古风仙侠工笔水墨插画，人物半身肖像';
+const FACE_DIR = path.join(SAVES, 'faces');
+function arkKey() { return (cfg.ark && String(cfg.ark.apiKey || '').trim()) || ''; }
+function faceFile(n) { return path.join(FACE_DIR, encodeURIComponent(String(n)) + '.img'); }
+async function arkImage(prompt) {
+  const res = await fetch(ARK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${arkKey()}` },
+    body: JSON.stringify({ model: ARK_MODEL, prompt, size: '1024x1024', response_format: 'b64_json', watermark: false }),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!res.ok) throw new Error(`ARK ${res.status}: ${(await res.text().catch(() => '')).slice(0, 120)}`);
+  const d = await res.json();
+  const b64 = d.data && d.data[0] && d.data[0].b64_json;
+  if (!b64) throw new Error('ARK 响应无图像数据');
+  return Buffer.from(b64, 'base64');
+}
+/* 用 DeepSeek 批量撰写 NPC 形象描述（一次调用，节省成本） */
+async function genFaceDescriptions(names, st) {
+  const list = names.map(n => { const p = st.npcs[n] || {}; return `${n}（${p.desc || '来历不明'}；${p.power || '境界未知'}）`; }).join('；');
+  const { json } = await chat(cfg, '你是古风仙侠人物设定师，为角色写写实古风形象描写。', [
+    { role: 'user', content: `为以下人物各写一句形象描述（30~60字：相貌、年龄感、气质、衣着、标志特征；写实古风，禁现代元素、禁玄幻夸张）。只输出 JSON 数组：[{"name":"人物名","face":"形象描述"}]\n${list}` },
+  ], true, 2048);
+  const arr = Array.isArray(json) ? json : (json && Array.isArray(json.faces) ? json.faces : []);
+  const map = {};
+  for (const it of arr) if (it && it.name && it.face) map[String(it.name)] = String(it.face).trim().slice(0, 80);
+  return map;
+}
+/* 为待生成画像的 NPC 批量生成人物小卡（异步执行，不阻塞回合响应） */
+async function genNpcFaces(slot, st) {
+  if (!arkKey() || !st || !st.npcs) return;
+  const pend = Object.entries(st.npcs).filter(([, p]) => p && p.avatar === 'pending').map(([n]) => n);
+  if (!pend.length) return;
+  log(`[slot${slot}] 人物小卡：为 ${pend.join('、')} 生成画像…`);
+  try {
+    const faces = await genFaceDescriptions(pend, st);
+    fs.mkdirSync(FACE_DIR, { recursive: true });
+    for (const n of pend) {
+      const face = faces[n];
+      if (!face) { markFace(slot, n, 'fail'); continue; }
+      try {
+        const img = await arkImage(`${FACE_STYLE}：${face}，素雅宣纸底色，淡墨晕染，衣纹流畅，无文字无边框`);
+        fs.writeFileSync(faceFile(n), img);
+        markFace(slot, n, 'done');
+        log(`[slot${slot}] 画像完成：${n}`);
+      } catch (e) { markFace(slot, n, 'fail'); log(`[slot${slot}] 画像失败：${n}（${e.message.slice(0, 60)}）`); }
+    }
+  } catch (e) { log(`[slot${slot}] 画像批量失败：${e.message.slice(0, 80)}`); }
+}
+/* 安全落盘：读最新存档只更新 avatar 字段，避免覆盖玩家新进度 */
+function markFace(slot, n, state) {
+  try {
+    const cur = loadSlot(slot);
+    if (cur && cur.npcs && cur.npcs[n]) {
+      cur.npcs[n].avatar = state;
+      saveSlot(slot, cur);
+    }
+  } catch { /* ignore */ }
+}
+
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, `http://${req.headers.host}`);
   const p = u.pathname;
@@ -541,6 +608,27 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/stt/auth') {
       const url = sttAuthUrl();
       return send(200, url ? { ok: true, appId: cfg.stt.appId, url } : { ok: false });
+    }
+
+    /* 人物小卡画像：按名读取已生成的 NPC 肖像 */
+    if (req.method === 'GET' && p === '/api/face') {
+      const n = String(u.searchParams.get('n') || '');
+      const fp = faceFile(n);
+      if (!n || !fs.existsSync(fp)) return send(404, err('NOFACE', '尚无画像'));
+      const buf = fs.readFileSync(fp);
+      res.writeHead(200, { 'Content-Type': 'image/webp', 'Cache-Control': 'max-age=600' });
+      return res.end(buf);
+    }
+
+    /* 豆包生图测试：用已配置的 ARK Key 生成一张测试图 */
+    if (req.method === 'POST' && p === '/api/ark/test') {
+      if (!arkKey()) return send(400, err('NOARK', '未配置豆包 ARK API Key。'));
+      try {
+        await arkImage('中国古风仙侠水墨插画：一柄古剑插在青石台上，云雾缭绕');
+        return send(200, { ok: true });
+      } catch (e) {
+        return send(500, err('ARKFAIL', e.message.slice(0, 120)));
+      }
     }
 
     const body = await readBody(req);
@@ -845,7 +933,7 @@ const server = http.createServer(async (req, res) => {
 
     /* API 配置：读取 / 保存（朋友机器填 key 即用） */
     if (req.method === 'GET' && p === '/api/getconfig') {
-      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model || 'deepseek-v4-flash', hasKey: !!cfg.apiKey, stt: !!cfg.stt });
+      return send(200, { ok: true, configured: !!cfg.apiKey, model: cfg.model || 'deepseek-v4-flash', hasKey: !!cfg.apiKey, stt: !!cfg.stt, ark: !!cfg.ark && !!String(cfg.ark.apiKey || '').trim() });
     }
     if (req.method === 'POST' && p === '/api/setconfig') {
       const key = String(body.apiKey || '').trim();
@@ -869,14 +957,22 @@ const server = http.createServer(async (req, res) => {
           sttMsg = '讯飞语音已清除。';
         }
       }
+      /* 豆包 ARK Key 配置（可保存或清空） */
+      let arkMsg = '';
+      if (body.ark !== undefined) {
+        const ak = body.ark && typeof body.ark === 'object' ? String(body.ark.apiKey || '').trim() : '';
+        if (ak) { cfg.ark = { apiKey: ak }; arkMsg = '豆包生图已接入。'; }
+        else { cfg.ark = null; arkMsg = '豆包生图已清除。'; }
+      }
       const configDir = process.env.XMUD_CONFIG_DIR || ROOT;
       try {
         const fp = path.join(configDir, 'config.json');
-        const cur = JSON.parse(fs.readFileSync(fp, 'utf8'));
+        const cur = JSON.parse(fs.readFileSync(fp, 'utf8').replace(/^\uFEFF/, ''));
         cur.apiKey = key;
         if (body.stt !== undefined) cur.stt = cfg.stt || undefined;
+        if (body.ark !== undefined) cur.ark = cfg.ark || undefined;
         fs.writeFileSync(fp, JSON.stringify(cur, null, 2), 'utf8');
-        return send(200, { ok: true, configured: !!key, stt: !!cfg.stt, msg: [key ? 'API Key 已保存并生效。' : 'API Key 已清空。', sttMsg].filter(Boolean).join('') });
+        return send(200, { ok: true, configured: !!key, stt: !!cfg.stt, ark: !!cfg.ark, msg: [key ? 'API Key 已保存并生效。' : 'API Key 已清空。', sttMsg, arkMsg].filter(Boolean).join('') });
       } catch (e) {
         return send(500, err('SAVEFAIL', `配置写入失败：${e.message}`));
       }

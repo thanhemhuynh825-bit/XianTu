@@ -783,6 +783,27 @@ body[data-skin="heitie"] { --scroll-thumb: #3a3a30; }
 .codex-body { min-height: 260px; max-height: 52vh; overflow-y: auto; }
 .codex-empty { text-align: center; color: var(--ink-faint); padding: 40px 0; font-size: 14px; }
 
+/* 人物小卡（万象·人物志：豆包统一水墨风画像，仅图鉴展示） */
+.npc-card { display: flex; gap: 10px; align-items: center; }
+.npc-info { min-width: 0; }
+.npc-av-wrap { position: relative; width: 52px; height: 52px; flex-shrink: 0; display: inline-block; }
+.npc-av-wrap.npc-lg { width: 96px; height: 96px; }
+.npc-av {
+  width: 52px; height: 52px; border-radius: 6px; object-fit: cover;
+  border: 1px solid var(--gold-dim); background: rgba(0,0,0,.35); display: block;
+}
+.npc-lg .npc-av { width: 96px; height: 96px; border-radius: 10px; }
+.npc-ph {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--kai); font-size: 22px; color: var(--gold-dim);
+  background: linear-gradient(160deg, rgba(201,168,106,.1), rgba(0,0,0,.4));
+  border: 1px solid var(--line); border-radius: 6px; box-sizing: border-box;
+}
+.npc-lg .npc-ph { font-size: 40px; border-radius: 10px; }
+.cd-npc-head { display: flex; gap: 14px; align-items: center; margin-bottom: 10px; }
+.cd-npc-head .cd-name { margin-bottom: 4px; }
+.cd-npc-head .cd-power { color: var(--cyan); font-size: 13px; }
+
 /* 缩略卡片网格 */
 .codex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .codex-card {

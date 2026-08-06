@@ -1,4 +1,4 @@
-﻿{
+{
   "apiKey": "",
   "baseUrl": "https://api.deepseek.com/v1/chat/completions",
   "model": "deepseek-v4-flash",

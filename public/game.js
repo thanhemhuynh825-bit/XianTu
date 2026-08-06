@@ -1003,6 +1003,7 @@ $('btn-map').addEventListener('click', () => {
 
 /* ---------- 万象阁 · 图鉴与人物志 ---------- */
 const codex = { tab: 'items', view: 'list', name: null };
+let codexTimer = null;
 
 /* 物品类型推断（从名称与说明） */
 function itemKind(st, name) {
@@ -1057,10 +1058,14 @@ function renderCodex() {
         <span class="ni-t">第${n.t}回</span>
       </div>`).join('') || '<div class="codex-empty" style="padding:30px 0">江湖初定，尚无大事——一切静待发生。</div>'}</div>`;
   } else {
-    cards = Object.entries(st.npcs || {}).map(([n, p]) => `<div class="codex-card" data-open="npcs" data-name="${esc(n)}">
-      <div class="cc-name">${esc(n)}<span class="cc-tag">人物</span></div>
-      <div class="cc-sub ${p.power ? '' : ''}" style="color:${p.power ? 'var(--cyan)' : 'var(--ink-faint)'}">${esc(p.power || '深浅未知')}</div>
-      <div class="cc-meta">初见于第 ${p.firstTurn} 回 · 登场 ${p.turns ? p.turns.length : 1} 次</div>
+    /* 人物志：人物小卡（豆包统一风格画像，仅图鉴展示） */
+    cards = Object.entries(st.npcs || {}).map(([n, p]) => `<div class="codex-card npc-card" data-open="npcs" data-name="${esc(n)}">
+      ${faceHtml(n, p)}
+      <div class="npc-info">
+        <div class="cc-name">${esc(n)}<span class="cc-tag">人物</span></div>
+        <div class="cc-sub ${p.power ? '' : ''}" style="color:${p.power ? 'var(--cyan)' : 'var(--ink-faint)'}">${esc(p.power || '深浅未知')}</div>
+        <div class="cc-meta">初见于第 ${p.firstTurn} 回 · 登场 ${p.turns ? p.turns.length : 1} 次</div>
+      </div>
     </div>`).join('');
   }
 
@@ -1110,7 +1115,13 @@ function renderCodexDetail() {
       const rels = (st.hooks || []).filter(h => h.text.includes(codex.name));
       html = `${back}
       <div class="codex-detail">
-        <div class="cd-name">${esc(p.name)}</div>
+        <div class="cd-npc-head">
+          ${faceHtml(codex.name, p, true)}
+          <div>
+            <div class="cd-name">${esc(p.name)}</div>
+            <div class="cd-power">${esc(p.power || '深浅未知（以你目前的境界无法窥探）')}</div>
+          </div>
+        </div>
         <div class="cd-field"><span class="k">修为情报</span><span class="v cd-power">${esc(p.power || '深浅未知（以你目前的境界无法窥探）')}</span></div>
         ${(p.powerHistory && p.powerHistory.length >= 2) ? `<div class="cd-field"><span class="k">修为轨迹</span><span class="v">${p.powerHistory.map(h => `<span class="seen-item"><span class="si-t">第${h.t}回</span>${esc(h.power)}</span>`).join('')}</span></div>` : ''}
         <div class="cd-field"><span class="k">身份来历</span><span class="v">${esc(p.desc || '所知甚少。')}</span></div>
@@ -1124,10 +1135,28 @@ function renderCodexDetail() {
   body.querySelector('.codex-back').addEventListener('click', () => { codex.view = 'list'; renderCodex(); });
 }
 
+/* 人物小卡头像：豆包统一风格画像；未生成/失败时显示水墨占位（首字） */
+function faceHtml(n, p, big = false) {
+  const av = p && p.avatar;
+  const ph = `<span class="npc-av npc-ph" title="${av === 'pending' ? '画像生成中…' : av === 'fail' ? '画像生成失败' : '尚未生成画像（配置豆包 ARK Key 后自动生成）'}">${esc((n || '').charAt(0))}</span>`;
+  const size = big ? 'npc-lg' : '';
+  if (av === 'done') {
+    return `<span class="npc-av-wrap ${size}"><img class="npc-av" src="/api/face?n=${encodeURIComponent(n)}" alt="${esc(n)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${ph}</span>`;
+  }
+  return `<span class="npc-av-wrap ${size}">${ph}</span>`;
+}
+
 $('btn-codex').addEventListener('click', () => {
   codex.tab = 'items'; codex.view = 'list';
   renderCodex();
   showModal('m-codex');
+  /* 人物小卡生成是异步的：万象打开期间定时刷新列表视图 */
+  if (codexTimer) clearInterval(codexTimer);
+  codexTimer = setInterval(() => {
+    const open = !document.getElementById('m-codex').classList.contains('hidden');
+    if (!open) { clearInterval(codexTimer); codexTimer = null; return; }
+    if (codex.view === 'list') renderCodex();
+  }, 12000);
 });
 document.querySelectorAll('#codex-tabs .codex-tab').forEach(t => t.addEventListener('click', () => {
   codex.tab = t.dataset.tab; codex.view = 'list';
@@ -1354,6 +1383,7 @@ $('btn-settings').addEventListener('click', () => {
       $('set-apikey-state').textContent = c.hasKey ? '已配置 ✓' : '未配置';
       $('set-apikey-state').style.color = c.hasKey ? 'var(--jade)' : 'var(--cinnabar)';
       setSttState(!!c.stt);
+      setArkState(!!c.ark);
     }
   }).catch(() => {});
   fetch('/api/update/status').then(r => r.json()).then(u => {
@@ -1373,6 +1403,30 @@ function setSttState(on) {
     s.style.color = 'var(--ink-faint)';
   }
 }
+function setArkState(on) {
+  const s = $('set-ark-state');
+  if (on) {
+    s.innerHTML = '豆包生图已接入 ✓ NPC 人物小卡将自动生成（统一水墨画风，仅图鉴展示）。';
+    s.style.color = 'var(--jade)';
+  } else {
+    s.innerHTML = '未接入：人物小卡显示水墨占位。在火山方舟控制台开通「豆包·图像生成」获取 ARK Key 后填入，新登场的 NPC 将自动配图。';
+    s.style.color = 'var(--ink-faint)';
+  }
+}
+$('set-ark-save').addEventListener('click', async () => {
+  const ak = $('set-ark').value.trim();
+  const r = await api('/api/setconfig', { ark: ak ? { apiKey: ak } : null });
+  if (r.ok) { setArkState(!!r.ark); alert(r.ark ? '豆包生图已保存' + '，重启游戏后生效。' : '豆包生图已清除。'); }
+  else alert(r.error?.msg || '保存失败');
+});
+$('set-ark-test').addEventListener('click', async () => {
+  const st = $('set-ark-state');
+  st.textContent = '… 正在生成测试图（约 10~30 秒）…';
+  st.style.color = 'var(--gold)';
+  const r = await api('/api/ark/test', {});
+  if (r.ok) { st.textContent = '测试通过 ✓ ARK Key 有效'; st.style.color = 'var(--jade)'; }
+  else { st.textContent = '测试失败：' + (r.error?.msg || '未知错误'); st.style.color = 'var(--cinnabar)'; }
+});
 $('set-stt-save').addEventListener('click', async () => {
   const stt = {
     appId: $('set-stt-appid').value.trim(),
