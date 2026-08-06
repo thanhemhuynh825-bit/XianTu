@@ -847,7 +847,7 @@ async function doImport(file) {
 }
 
 /* ---------- 新手指引 ---------- */
-const GUIDE_KEY = 'xmx_guide_v1';
+const GUIDE_KEY = 'xmx_guide_v2'; // v2：新玩法指引（自由度/声名/天劫/身外之物等），升级后自动弹出一次
 function guideState() {
   try { return JSON.parse(localStorage.getItem(GUIDE_KEY)) || [false, false, false, false, false]; }
   catch { return [false, false, false, false, false]; }
